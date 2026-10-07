@@ -63,5 +63,5 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Task: Weapon shop building with a "WEAPON SHOP" sign (Parts only, plastic block style), placed in the spawn area to the left of the spawn
 - Files: models/BuildWeaponShop.lua (new); Studio: Workspace.WeaponShop (new Model) at about (-30, 2, 10), front facing the spawn. Nothing else touched.
 - Branch: claude/bunny-model
-- Status: in progress
-- Link: n/a
+- Status: done — Workspace.WeaponShop built in the open place: 145 anchored Parts, sign says WEAPON SHOP, front faces the spawn. Checked visually in edit mode, not playtested; no scripts/prompts attached yet (it is scenery). Existing objects (Fence, billboards) untouched. Place not saved by me — save in Studio.
+- Link: https://github.com/35zi/mcp-server/commit/2e7bf02
