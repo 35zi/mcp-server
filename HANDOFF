@@ -42,5 +42,5 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Task: Bunny hop-only walk + idle animation (server script inside Workspace.Bunny, animates anchored Parts)
 - Files: models/BunnyBrain.server.lua (new); Studio: Workspace.Bunny (adding a Script child)
 - Branch: claude/bunny-model
-- Status: in progress
+- Status: done — playtested in Studio (server): idle breathing/ear flicks, hop-only wandering within 30 studs of its start spot, no console errors. Parts still Anchored; moves server-side (replication is ~20Hz — move to a client script later if it looks choppy).
 - Link: n/a
