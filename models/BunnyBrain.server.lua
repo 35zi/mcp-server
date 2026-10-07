@@ -11,7 +11,13 @@ local HOP_TIME = 0.5 -- seconds in the air per hop
 local HOP_HEIGHT = 2.2
 local HOP_DIST = 4.5 -- studs per hop
 local LAND_PAUSE = 0.2 -- little crouch between hops
-local WANDER_RADIUS = 30 -- never roam further than this from the start spot
+-- The bunny only roams the first area: inside the outer walls, short of the red line.
+-- Override per bunny with attributes AreaMinX / AreaMaxX / AreaMinZ / AreaMaxZ.
+local AREA_MIN_X = model:GetAttribute("AreaMinX") or -140
+local AREA_MAX_X = model:GetAttribute("AreaMaxX") or 140
+local AREA_MIN_Z = model:GetAttribute("AreaMinZ") or -78
+local AREA_MAX_Z = model:GetAttribute("AreaMaxZ") or 88
+local BODY_RADIUS = 1.8 -- used to check a hop path for fences and walls
 local TURN_SPEED = 7 -- radians per second
 
 local rng = Random.new()
@@ -55,19 +61,37 @@ local flickT, flickSide = nil, "L"
 local hopsLeft, hopFrom, hopTo, step = 0, pos, pos, Vector3.zero
 local clock = 0
 
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+rayParams.FilterDescendantsInstances = { model }
+
+local function inArea(v)
+	return v.X >= AREA_MIN_X and v.X <= AREA_MAX_X and v.Z >= AREA_MIN_Z and v.Z <= AREA_MAX_Z
+end
+
+-- Sweep a sphere at body height along the path; any hit (fence, wall...) blocks it.
+local function pathClear(from, to)
+	local origin = from + Vector3.new(0, 1, 0)
+	return workspace:Spherecast(origin, BODY_RADIUS, to - from, rayParams) == nil
+end
+
 local function startWander()
-	local ang = rng:NextNumber(0, math.pi * 2)
-	local dist = rng:NextNumber(7, 16)
-	local target = pos + Vector3.new(math.cos(ang), 0, math.sin(ang)) * dist
-	local fromHome = target - home
-	if fromHome.Magnitude > WANDER_RADIUS then
-		target = home + fromHome.Unit * WANDER_RADIUS
+	for _ = 1, 14 do
+		local ang = rng:NextNumber(0, math.pi * 2)
+		local dist = rng:NextNumber(7, 16)
+		local target = pos + Vector3.new(math.cos(ang), 0, math.sin(ang)) * dist
+		if inArea(target) and pathClear(pos, target) then
+			local delta = target - pos
+			hopsLeft = math.max(1, math.ceil(delta.Magnitude / HOP_DIST))
+			step = delta / hopsLeft
+			targetYaw = math.atan2(-delta.X, -delta.Z)
+			state, stateT = "turn", 0
+			return
+		end
 	end
-	local delta = target - pos
-	hopsLeft = math.max(1, math.ceil(delta.Magnitude / HOP_DIST))
-	step = delta / hopsLeft
-	targetYaw = math.atan2(-delta.X, -delta.Z)
-	state, stateT = "turn", 0
+	-- boxed in: rest a little and try again
+	state, stateT = "idle", 0
+	idleDur = rng:NextNumber(1, 2)
 end
 
 local function angleDiff(a, b)

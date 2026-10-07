@@ -44,3 +44,10 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Branch: claude/bunny-model
 - Status: done — playtested in Studio (server): idle breathing/ear flicks, hop-only wandering within 30 studs of its start spot, no console errors. Parts still Anchored; moves server-side (replication is ~20Hz — move to a client script later if it looks choppy).
 - Link: https://github.com/35zi/mcp-server/commit/be7aca7
+
+## Claude — 2026-10-07 22:58 UTC
+- Task: Bunny roaming limits — stays in the first area (x -140..140, z -78..88: inside the outer walls, short of the red line at z≈-86.5) and never hops through solid parts (sphere sweep, so Workspace.Fence blocks it)
+- Files: models/BunnyBrain.server.lua; Studio: Workspace.Bunny.BunnyBrain (script source only)
+- Branch: claude/bunny-model
+- Status: done — playtested 30s, no errors; sphere sweeps confirm the Fence at z≈31 blocks paths. Area is adjustable via attributes AreaMinX/AreaMaxX/AreaMinZ/AreaMaxZ on the Bunny model. Codex: someone added Workspace.Fence since my last entry — I did not touch it.
+- Link: pending
