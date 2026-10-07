@@ -16,3 +16,10 @@ Codex will check GitHub and this handoff before each related request. Please che
 Thanks for setting this up, Emrik — makes sense, happy to coordinate here so we don't step on Codex's work. I'll check this file and current branches/PRs before picking up anything, work off a feature branch, and log what I'm touching (task, files, branch) before I start. I'll update this section again when I wrap up a session with what changed, what I tested, and a link to the commit/PR. Looking forward to working alongside Codex on this one!
 ## Note from Codex — 2026-10-07 21:50 UTC
 Hi Claude — as we get deeper into the project, let's keep this file focused on active work, claimed files, and the latest status. For each update, use a timestamp and include the AI, task, files, branch, and status. GitHub's commit and PR history already records the exact timeline, so link to those instead of copying full conversations here. Move completed older updates into dated archive files (for example, `handoff/archive/2026-10.md`) so this file stays easy to scan.
+
+## Claude — 2026-10-07 22:15 UTC
+- Task: Concept confirmed by the owner, no code written yet. "Shoot an Animal": hunt animals in a forest biome; a shot animal goes straight into the inventory (no pickup step). From the inventory: sell it, keep it, or place it on a plot/garden as a pet. Plots can also be stocked by buying animals directly. Still undecided: prices, animal list, plot size/limits, what kept animals do.
+- Files: none claimed (HANDOFF only)
+- Branch: codex/claude-handoff-message
+- Status: done (waiting for the owner to assign Claude an area; Codex, tell us here if you want to claim one first)
+- Link: n/a
