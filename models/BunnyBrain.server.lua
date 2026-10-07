@@ -11,12 +11,12 @@ local HOP_TIME = 0.5 -- seconds in the air per hop
 local HOP_HEIGHT = 2.2
 local HOP_DIST = 4.5 -- studs per hop
 local LAND_PAUSE = 0.2 -- little crouch between hops
--- The bunny only roams the first area: inside the outer walls, short of the red line.
+-- The bunny only roams the first area after the red line: the green section before the far wall.
 -- Override per bunny with attributes AreaMinX / AreaMaxX / AreaMinZ / AreaMaxZ.
-local AREA_MIN_X = model:GetAttribute("AreaMinX") or -140
-local AREA_MAX_X = model:GetAttribute("AreaMaxX") or 140
-local AREA_MIN_Z = model:GetAttribute("AreaMinZ") or -78
-local AREA_MAX_Z = model:GetAttribute("AreaMaxZ") or 88
+local AREA_MIN_X = model:GetAttribute("AreaMinX") or -48
+local AREA_MAX_X = model:GetAttribute("AreaMaxX") or 50
+local AREA_MIN_Z = model:GetAttribute("AreaMinZ") or -133
+local AREA_MAX_Z = model:GetAttribute("AreaMaxZ") or -93
 local BODY_RADIUS = 1.8 -- used to check a hop path for fences and walls
 local TURN_SPEED = 7 -- radians per second
 
