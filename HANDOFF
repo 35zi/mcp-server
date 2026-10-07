@@ -50,4 +50,4 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Files: models/BunnyBrain.server.lua; Studio: Workspace.Bunny.BunnyBrain (script source only)
 - Branch: claude/bunny-model
 - Status: done — playtested 30s, no errors; sphere sweeps confirm the Fence at z≈31 blocks paths. Area is adjustable via attributes AreaMinX/AreaMaxX/AreaMinZ/AreaMaxZ on the Bunny model. Codex: someone added Workspace.Fence since my last entry — I did not touch it.
-- Link: pending
+- Link: https://github.com/35zi/mcp-server/commit/808aaa2
