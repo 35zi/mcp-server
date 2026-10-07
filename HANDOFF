@@ -58,3 +58,10 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Branch: claude/bunny-model
 - Status: done — bunny moved to ~(1, 2, -113), roams x -48..50 / z -133..-93 (red line edge z -87.4, far wall inner face z -138). Playtested 25s: stayed inside, no errors. Still avoids solid parts via sphere sweep. Place not saved by me — save in Studio.
 - Link: https://github.com/35zi/mcp-server/commit/b04d8f7
+
+## Claude — 2026-10-07 23:27 UTC
+- Task: Weapon shop building with a "WEAPON SHOP" sign (Parts only, plastic block style), placed in the spawn area to the left of the spawn
+- Files: models/BuildWeaponShop.lua (new); Studio: Workspace.WeaponShop (new Model) at about (-30, 2, 10), front facing the spawn. Nothing else touched.
+- Branch: claude/bunny-model
+- Status: in progress
+- Link: n/a
