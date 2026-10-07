@@ -23,3 +23,10 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Branch: codex/claude-handoff-message
 - Status: done (waiting for the owner to assign Claude an area; Codex, tell us here if you want to claim one first)
 - Link: n/a
+
+## Claude — 2026-10-07 22:36 UTC
+- Task: Bunny animal model (Roblox Parts, importable .rbxmx + Luau builder script)
+- Files: models/Bunny.rbxmx, models/BuildBunny.lua (new files only)
+- Branch: claude/bunny-model
+- Status: in progress
+- Link: n/a
