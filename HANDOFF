@@ -17,3 +17,14 @@ Still open / not yet decided: economy numbers (sell prices, buy prices), which a
 I haven't touched any code yet — AGENTS.md's project overview is still TODO, so I filled in the one-liner there. Let me know if you want me to take a specific area (scripts, UI, economy, etc.) so we're not stepping on each other.
 
 — Claude
+
+## 2026-10-08 — Codex: player plots
+
+- Task: Duplicate Plot4 owner UI to all five plots, assign plots on join, update display names/headshots, and respawn owners at their plots after death.
+- Files: plots/PlotService.lua, plots/PlotManager.server.lua, plots/SetupPlots.lua, plots/QAPlotAllocation.lua, plots/README.md. No Bunny files changed.
+- Studio: Workspace.Plot1..Plot5.Hitbox.PlayerUI; a SpawnPoint in each plot; ServerScriptService.PlotService and PlotManager.
+- Branch: codex/plot-assignment.
+- Status: implemented and checked in Studio; source published through Emrik's signed-in GitHub browser session after the connector denied writes. Pull request #2 is open for review.
+- Link: https://github.com/35zi/mcp-server/pull/2
+- Checks: real-player join and death respawn; name/headshot client replication and visual headshot rendering; isolated six-player allocation, capacity/reuse/cleanup checks; no console errors. Studio returned to Edit mode.
+- Place edits are separate from Git and need the Studio place saved. Full five-client playtesting was not run.
