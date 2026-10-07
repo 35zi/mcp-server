@@ -56,5 +56,5 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Task: Correction from owner — bunny belongs in the first area AFTER the red line (green section past the entrance gap, before the far wall at z≈-140). Moving Workspace.Bunny there and re-limiting its roaming to that section.
 - Files: models/BunnyBrain.server.lua; Studio: Workspace.Bunny (moved, script defaults + Area* attributes)
 - Branch: claude/bunny-model
-- Status: in progress
-- Link: n/a
+- Status: done — bunny moved to ~(1, 2, -113), roams x -48..50 / z -133..-93 (red line edge z -87.4, far wall inner face z -138). Playtested 25s: stayed inside, no errors. Still avoids solid parts via sphere sweep. Place not saved by me — save in Studio.
+- Link: https://github.com/35zi/mcp-server/commit/b04d8f7
