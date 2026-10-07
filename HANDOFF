@@ -79,3 +79,10 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Branch: claude/bunny-model
 - Status: done — Workspace.WeaponShop v3 built (76 Parts): L-shaped counter, striped canopy, glowing circle, 4 rifles on the counter, WEAPON SHOP sign, Browse weapons prompt + placeholder menu (same scripts as v2, which were playtested; v3 itself only checked in edit mode). The open place had no WeaponShop when I started (the place seems to have been reloaded from an earlier save), so I built it fresh at about (-30, 2, 10). Checked the footprint is clear of Codex's Plot1..5. Place not saved by me — save in Studio.
 - Link: https://github.com/35zi/mcp-server/commit/507e136
+
+## Claude — 2026-10-07 23:50 UTC
+- Task: Cartoon "Python" revolver prop (low-poly, chunky, big iron sight) — built with a Blender Python script run headless on the installed Blender 5.2 (no MCP connection installed), exported as FBX/OBJ for a Roblox MeshPart
+- Files: models/blender/python_gun.py and models/blender/out/* (new). No Studio changes yet.
+- Branch: claude/bunny-model
+- Status: in progress
+- Link: n/a
