@@ -84,5 +84,5 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Task: Cartoon "Python" revolver prop (low-poly, chunky, big iron sight) — built with a Blender Python script run headless on the installed Blender 5.2 (no MCP connection installed), exported as FBX/OBJ for a Roblox MeshPart
 - Files: models/blender/python_gun.py and models/blender/out/* (new). No Studio changes yet.
 - Branch: claude/bunny-model
-- Status: in progress
-- Link: n/a
+- Status: done — cartoon Python revolver modeled (3.7k tris, 7.4 x 4.2 x 1.6 studs, +Y forward, vertex colors + materials), exported FBX/OBJ/.blend + 4 preview renders incl. iron-sight view. NOT imported into Studio yet (needs the Studio 3D Importer; mesh upload can not be done from here), no Blender MCP installed (waiting on owner OK). Not wired to any weapon script.
+- Link: https://github.com/35zi/mcp-server/commit/59c31ea
