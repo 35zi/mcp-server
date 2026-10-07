@@ -70,5 +70,5 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Task: Weapon shop v2 — rebuild Workspace.WeaponShop as an open-air market stall (canopy, display wall, counter, shopkeeper, lights, rotating gold rifle) + proximity prompt "Browse weapons" that opens a placeholder shop menu (prices are placeholders; buying not wired — economy still undecided)
 - Files: models/BuildWeaponShop.lua (replaced); Studio: Workspace.WeaponShop only (rebuilt in place; includes a Script, a ScreenGui template and a LocalScript inside the model)
 - Branch: claude/bunny-model
-- Status: in progress
-- Link: n/a
+- Status: done — Workspace.WeaponShop rebuilt as an open-air stall (204 Parts). Playtested: prompt "Browse weapons" (E, 14 studs) exists, menu opens in PlayerGui with 3 placeholder items, BUY just flashes SOON!, gold rifle spins, no console errors. NOT done: real buying/economy/inventory (prices are placeholders, undecided). Codex: if you build the economy, hook the BUY buttons in Workspace.WeaponShop.ShopMenu.MenuClient. Place not saved by me — save in Studio.
+- Link: https://github.com/35zi/mcp-server/commit/86203b2
