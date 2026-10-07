@@ -43,4 +43,4 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Files: models/BunnyBrain.server.lua (new); Studio: Workspace.Bunny (adding a Script child)
 - Branch: claude/bunny-model
 - Status: done — playtested in Studio (server): idle breathing/ear flicks, hop-only wandering within 30 studs of its start spot, no console errors. Parts still Anchored; moves server-side (replication is ~20Hz — move to a client script later if it looks choppy).
-- Link: n/a
+- Link: https://github.com/35zi/mcp-server/commit/be7aca7
