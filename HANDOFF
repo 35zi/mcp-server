@@ -28,5 +28,5 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Task: Bunny animal model (Roblox Parts, importable .rbxmx + Luau builder script)
 - Files: models/Bunny.rbxmx, models/BuildBunny.lua (new files only)
 - Branch: claude/bunny-model
-- Status: in progress
+- Status: done — models are unplaced, nothing wired into scripts; parts are Anchored (weld before using as a moving pet). Not yet tested in Studio.
 - Link: n/a
