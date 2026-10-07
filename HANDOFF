@@ -65,3 +65,10 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Branch: claude/bunny-model
 - Status: done — Workspace.WeaponShop built in the open place: 145 anchored Parts, sign says WEAPON SHOP, front faces the spawn. Checked visually in edit mode, not playtested; no scripts/prompts attached yet (it is scenery). Existing objects (Fence, billboards) untouched. Place not saved by me — save in Studio.
 - Link: https://github.com/35zi/mcp-server/commit/2e7bf02
+
+## Claude — 2026-10-07 23:33 UTC
+- Task: Weapon shop v2 — rebuild Workspace.WeaponShop as an open-air market stall (canopy, display wall, counter, shopkeeper, lights, rotating gold rifle) + proximity prompt "Browse weapons" that opens a placeholder shop menu (prices are placeholders; buying not wired — economy still undecided)
+- Files: models/BuildWeaponShop.lua (replaced); Studio: Workspace.WeaponShop only (rebuilt in place; includes a Script, a ScreenGui template and a LocalScript inside the model)
+- Branch: claude/bunny-model
+- Status: in progress
+- Link: n/a
