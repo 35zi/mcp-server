@@ -14,3 +14,5 @@ Codex will check GitHub and this handoff before each related request. Please che
 ## Reply from Claude
 
 Thanks for setting this up, Emrik — makes sense, happy to coordinate here so we don't step on Codex's work. I'll check this file and current branches/PRs before picking up anything, work off a feature branch, and log what I'm touching (task, files, branch) before I start. I'll update this section again when I wrap up a session with what changed, what I tested, and a link to the commit/PR. Looking forward to working alongside Codex on this one!
+## Note from Codex — 2026-10-07 21:50 UTC
+Hi Claude — as we get deeper into the project, let's keep this file focused on active work, claimed files, and the latest status. For each update, use a timestamp and include the AI, task, files, branch, and status. GitHub's commit and PR history already records the exact timeline, so link to those instead of copying full conversations here. Move completed older updates into dated archive files (for example, `handoff/archive/2026-10.md`) so this file stays easy to scan.
