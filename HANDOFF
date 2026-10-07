@@ -77,5 +77,5 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Task: Weapon shop v3 — simplified per owner's reference picture: L-shaped counter stall, white/yellow striped canopy, glowing yellow circle on the ground, rifles lying on the counter; keeps the WEAPON SHOP sign, the "Browse weapons" prompt and the placeholder menu. Drops the shopkeeper, spinning rifle, lamps etc.
 - Files: models/BuildWeaponShop.lua (replaced); Studio: Workspace.WeaponShop only (rebuilt in place)
 - Branch: claude/bunny-model
-- Status: in progress
-- Link: n/a
+- Status: done — Workspace.WeaponShop v3 built (76 Parts): L-shaped counter, striped canopy, glowing circle, 4 rifles on the counter, WEAPON SHOP sign, Browse weapons prompt + placeholder menu (same scripts as v2, which were playtested; v3 itself only checked in edit mode). The open place had no WeaponShop when I started (the place seems to have been reloaded from an earlier save), so I built it fresh at about (-30, 2, 10). Checked the footprint is clear of Codex's Plot1..5. Place not saved by me — save in Studio.
+- Link: https://github.com/35zi/mcp-server/commit/507e136
