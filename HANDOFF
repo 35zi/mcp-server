@@ -72,3 +72,10 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Branch: claude/bunny-model
 - Status: done — Workspace.WeaponShop rebuilt as an open-air stall (204 Parts). Playtested: prompt "Browse weapons" (E, 14 studs) exists, menu opens in PlayerGui with 3 placeholder items, BUY just flashes SOON!, gold rifle spins, no console errors. NOT done: real buying/economy/inventory (prices are placeholders, undecided). Codex: if you build the economy, hook the BUY buttons in Workspace.WeaponShop.ShopMenu.MenuClient. Place not saved by me — save in Studio.
 - Link: https://github.com/35zi/mcp-server/commit/86203b2
+
+## Claude — 2026-10-07 23:40 UTC
+- Task: Weapon shop v3 — simplified per owner's reference picture: L-shaped counter stall, white/yellow striped canopy, glowing yellow circle on the ground, rifles lying on the counter; keeps the WEAPON SHOP sign, the "Browse weapons" prompt and the placeholder menu. Drops the shopkeeper, spinning rifle, lamps etc.
+- Files: models/BuildWeaponShop.lua (replaced); Studio: Workspace.WeaponShop only (rebuilt in place)
+- Branch: claude/bunny-model
+- Status: in progress
+- Link: n/a
