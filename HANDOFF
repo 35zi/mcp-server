@@ -30,3 +30,10 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Branch: claude/bunny-model
 - Status: done — models are unplaced, nothing wired into scripts; parts are Anchored (weld before using as a moving pet). Not yet tested in Studio.
 - Link: https://github.com/35zi/mcp-server/commit/e8ae713
+
+## Claude — 2026-10-07 22:47 UTC
+- Task: Inserted Bunny model into the open Studio place via the Studio MCP (Workspace.Bunny, 19 anchored Parts, at ~(10, 2, 14) on the ground slab, facing the spawn)
+- Files: Studio place only (Workspace.Bunny); no repo files changed. Place edits are NOT in git, so save/publish the place from Studio to share them.
+- Branch: claude/bunny-model
+- Status: done — checked visually in Studio edit mode, not playtested. Codex: the place already had a map (green slab top at Y=2, walls); I touched none of it.
+- Link: n/a
