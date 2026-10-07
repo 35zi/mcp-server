@@ -4,7 +4,7 @@ This file is read by both Codex (AGENTS.md) and Claude Code (via CLAUDE.md).
 Keep it short and up to date. Edit the TODO sections for your project.
 
 ## Project overview
-- TODO: One or two sentences on what this project is and who it's for.
+- "Shoot an Animal" — a Roblox game. Players hunt animals in a forest biome; shooting one auto-adds it to the player's inventory. Animals can be sold or kept/placed in the player's plot (which can also be stocked by buying animals directly). See HANDOFF for the latest discussion.
 
 ## How to run and test
 - Install: TODO (e.g. `npm install` or `pip install -r requirements.txt`)
