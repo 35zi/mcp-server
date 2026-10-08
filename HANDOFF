@@ -93,3 +93,10 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Branch: claude/bunny-model
 - Status: done — playtested in Studio: walking onto the ring opens the view (camera tween, FOV 50, character hidden + frozen), A/D/arrows and the on-screen arrows browse with wrap-around (1 preview at a time, no leaks), BUY shows COMING SOON for 1.2 s, X and Backspace leave (player put just outside the ring facing away, camera/FOV/WalkSpeed/Jump restored), re-entry needs stepping out first, dying in the shop cleans up; no console errors. Note: this place has no PlayerModule in PlayerScripts, so the script freezes the character via Humanoid (WalkSpeed/Jump 0, re-applied each frame) and restores the old values. Not done: real weapons/prices/stats/buying — fill ReplicatedStorage.WeaponShopCatalog and add preview Models to ReplicatedStorage.WeaponShopPreviews. Place not saved by me — save in Studio.
 - Link: https://github.com/35zi/mcp-server/commit/dcf2219
+
+## Claude — 2026-10-08 00:23 UTC
+- Task: Small-animal models in the bunny's style — Frog, Mouse, Squirrel, Hedgehog, Duckling (anchored plastic Parts, feet on the ground, facing -Z). Models only: no animation/behaviour scripts yet.
+- Files: models/BuildSmallAnimals.lua (new). Studio: new folder Workspace.SmallAnimals (5 Models) in the green area past the red line, near the far wall (z about -127). Bunny and everything else untouched.
+- Branch: claude/bunny-model
+- Status: in progress
+- Link: n/a
