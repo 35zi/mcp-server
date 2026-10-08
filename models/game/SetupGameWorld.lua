@@ -98,11 +98,11 @@ for _, pair in ipairs(MOVE) do
 end
 
 ---------------------------------------------------------------- spawn zones (one per world)
--- World 1 = the green floor past the red line (z -190 .. -86), World 2 = the gold/desert floor after it
--- (z -347 .. -190); both 110 wide between the side walls. Population = most animals alive there at once (topped up every 5-minute wave).
+-- World 1 = the green floor past the red line (z -346 .. -86), World 2 = the gold/desert floor after it
+-- (z -686 .. -346); both 300 wide (see BuildWorldLayout). Population = most animals alive there at once (topped up every 5-minute wave).
 local ZONES = {
-	{ "Zone1", 1, CFrame.new(1, 7, -139), Vector3.new(104, 10, 98) },
-	{ "Zone2", 2, CFrame.new(1, 7, -269), Vector3.new(104, 10, 152) },
+	{ "Zone1", 1, CFrame.new(1, 7, -216), Vector3.new(292, 10, 252) },
+	{ "Zone2", 2, CFrame.new(1, 7, -516), Vector3.new(292, 10, 332) },
 }
 local zones = folder(workspace, "AnimalSpawnZones")
 for _, z in ipairs(ZONES) do

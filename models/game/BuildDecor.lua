@@ -1,9 +1,9 @@
 -- BuildDecor (run in Studio's command bar / via MCP, edit mode; safe to re-run: it rebuilds Workspace.Decor)
 --
 -- A few small blocky decorations, in the same chunky style as the animals:
---   * Workspace.Decor.Forest (World 1, the green floor past the red line): small round + pine trees, bushes with
---     berries, flower patches, rocks, a fallen log
---   * Workspace.Decor.Desert (World 2, the gold floor): cacti, sandstone rocks, dry bushes, a cow skull
+--   * Workspace.Decor.Forest (World 1, the green floor past the red line): round + pine trees, bushes with
+--     berries, flower patches, rocks, fallen logs - scattered over the whole (big) world
+--   * Workspace.Decor.Desert (World 2, the gold floor): cacti, sandstone rocks, dry bushes, cow skulls
 -- Trees, cacti and rocks are solid; bushes and flowers you can walk through. AnimalManager keeps animals from
 -- spawning on top of decorations and they walk around them (Workspace.Decor).
 local CHS = game:GetService("ChangeHistoryService")
@@ -166,44 +166,65 @@ local function skull(x, z)
 	m.PrimaryPart = m:GetChildren()[1]
 end
 
----------------------------------------------------------------- layout (World 1: z -190 .. -86, World 2: z -347 .. -190, x -54 .. 56)
+---------------------------------------------------------------- layout: scattered over the big worlds (BuildWorldLayout)
+-- World 1: x -146 .. 148, z -340 .. -92; World 2: z -680 .. -352. Pieces keep apart and stay off the edges.
 local GREY_ROCK = { "#8d929b", "#a3a8b1" }
-
-roundTree(-47, -104, 1.0)
-pineTree(49, -116, 1.1)
-roundTree(-45, -160, 1.15)
-pineTree(48, -176, 0.95)
-roundTree(-18, -180, 0.9)
-pineTree(24, -142, 1.0)
-bush(-34, -97, 1)
-bush(37, -101, 1.1)
-bush(8, -162, 0.9)
-bush(-28, -131, 1)
-bush(44, -150, 0.95)
-for _, p in ipairs({ { -10, -108 }, { 18, -120 }, { -38, -146 }, { 30, -170 }, { -5, -140 }, { 40, -128 } }) do
-	flowers(p[1], p[2])
+local placed = {}
+local function scatter(zNear, zFar, count, gap, build)
+	local made = 0
+	for _ = 1, count * 30 do
+		if made >= count then
+			break
+		end
+		local x, z = rng:NextNumber(-140, 142), rng:NextNumber(zFar, zNear)
+		local ok = true
+		for _, p in ipairs(placed) do
+			if (Vector2.new(x, z) - p).Magnitude < gap then
+				ok = false
+				break
+			end
+		end
+		if ok then
+			table.insert(placed, Vector2.new(x, z))
+			build(x, z)
+			made += 1
+		end
+	end
 end
-rock(forest, -10, -122, 0.9, GREY_ROCK)
-rock(forest, 31, -186, 1.1, GREY_ROCK)
-rock(forest, -50, -134, 1, GREY_ROCK)
-log(12, -112)
 
-cactus(-46, -212, 1.0)
-cactus(47, -234, 1.15)
-cactus(-40, -282, 0.9)
-cactus(45, -302, 1.05)
-cactus(-15, -332, 1.2)
-cactus(20, -257, 0.85)
-rock(desert, -25, -222, 1.1, SANDSTONE)
-rock(desert, 30, -207, 0.9, SANDSTONE)
-rock(desert, -48, -316, 1.3, SANDSTONE)
-rock(desert, 10, -296, 1, SANDSTONE)
-rock(desert, 48, -340, 1.2, SANDSTONE)
-dryBush(0, -242)
-dryBush(-30, -262)
-dryBush(38, -272)
-dryBush(-5, -312)
-skull(25, -322)
+-- World 1: forest
+scatter(-98, -338, 9, 16, function(x, z)
+	roundTree(x, z, rng:NextNumber(0.9, 1.3))
+end)
+scatter(-98, -338, 9, 16, function(x, z)
+	pineTree(x, z, rng:NextNumber(0.9, 1.4))
+end)
+scatter(-94, -338, 12, 10, function(x, z)
+	bush(x, z, rng:NextNumber(0.85, 1.2))
+end)
+scatter(-94, -338, 16, 8, function(x, z)
+	flowers(x, z)
+end)
+scatter(-94, -338, 7, 10, function(x, z)
+	rock(forest, x, z, rng:NextNumber(0.8, 1.4), GREY_ROCK)
+end)
+scatter(-94, -338, 3, 12, function(x, z)
+	log(x, z)
+end)
+
+-- World 2: desert
+scatter(-356, -676, 16, 16, function(x, z)
+	cactus(x, z, rng:NextNumber(0.85, 1.35))
+end)
+scatter(-356, -676, 12, 12, function(x, z)
+	rock(desert, x, z, rng:NextNumber(0.9, 1.6), SANDSTONE)
+end)
+scatter(-356, -676, 10, 10, function(x, z)
+	dryBush(x, z)
+end)
+scatter(-356, -676, 3, 20, function(x, z)
+	skull(x, z)
+end)
 
 if rec then
 	CHS:FinishRecording(rec, Enum.FinishRecordingOperation.Commit)
