@@ -4,8 +4,9 @@
 -- shop view opens. Browse with the arrows (or A/D, Left/Right, LB/RB), leave with X (or Backspace / B).
 -- Leaving puts you just outside the ring; you have to step out and back in to open it again.
 --
--- Preview + navigation only for now: weapon models, stats, prices and buying come later
--- (items live in ReplicatedStorage.WeaponShopCatalog; BUY only says "COMING SOON").
+-- Items live in ReplicatedStorage.WeaponShopCatalog (name, price, stats). The button is BUY $price -> EQUIP -> UNEQUIP;
+-- the real work is done by ServerScriptService.WeaponShopService through ReplicatedStorage.WeaponShopRemote (the client
+-- only asks). Items without a price show COMING SOON.
 -- Positions come from the markers in Workspace.WeaponShop.ShopView:
 --   ShopZone (invisible cylinder over the ring), ShopCamera, PreviewSpot, ExitPoint.
 
@@ -18,6 +19,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
 local catalog = require(ReplicatedStorage:WaitForChild("WeaponShopCatalog"))
+local remote = ReplicatedStorage:WaitForChild("WeaponShopRemote", 10) -- server side: buying / equipping (WeaponShopService)
 
 local shopView = workspace:WaitForChild("WeaponShop"):WaitForChild("ShopView")
 local zone = shopView:WaitForChild("ShopZone")
@@ -212,6 +214,95 @@ local hint = make("TextLabel", {
 })
 textOutline(hint, 2)
 
+local BLUE = Color3.fromRGB(60, 110, 200)
+local EMPTY = Color3.fromRGB(80, 62, 48)
+
+local cashLabel = make("TextLabel", {
+	Name = "Cash",
+	Size = UDim2.fromOffset(230, 46),
+	BackgroundColor3 = DARK,
+	Text = "Cash: $0",
+	Font = Enum.Font.GothamBlack,
+	TextSize = 24,
+	TextColor3 = YELLOW,
+	Parent = gui,
+})
+corner(cashLabel, UDim.new(0, 12))
+outline(cashLabel, YELLOW, 3)
+
+-- stats panel: one 10-segment bar per stat (the value is 1-10; "?" while a weapon's stats are undecided)
+local statsPanel = make("Frame", {
+	Name = "Stats",
+	AnchorPoint = Vector2.new(1, 0),
+	Size = UDim2.fromOffset(330, 214),
+	BackgroundColor3 = DARK,
+	Parent = gui,
+})
+corner(statsPanel, UDim.new(0, 16))
+outline(statsPanel, YELLOW, 3)
+make("TextLabel", {
+	Name = "Title",
+	Position = UDim2.fromOffset(16, 8),
+	Size = UDim2.fromOffset(200, 28),
+	BackgroundTransparency = 1,
+	Text = "STATS",
+	Font = Enum.Font.GothamBlack,
+	TextSize = 22,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextColor3 = YELLOW,
+	Parent = statsPanel,
+})
+local STAT_ORDER = { "Damage", "Range", "Fire Rate", "Accuracy" }
+local statRows = {}
+for i, name in ipairs(STAT_ORDER) do
+	local y = 44 + (i - 1) * 34
+	make("TextLabel", {
+		Name = name,
+		Position = UDim2.fromOffset(16, y),
+		Size = UDim2.fromOffset(96, 26),
+		BackgroundTransparency = 1,
+		Text = name,
+		Font = Enum.Font.GothamBold,
+		TextSize = 17,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = WHITE,
+		Parent = statsPanel,
+	})
+	local segments = {}
+	for k = 1, 10 do
+		segments[k] = make("Frame", {
+			Position = UDim2.fromOffset(114 + (k - 1) * 17, y + 5),
+			Size = UDim2.fromOffset(15, 16),
+			BackgroundColor3 = EMPTY,
+			BorderSizePixel = 0,
+			Parent = statsPanel,
+		})
+	end
+	local value = make("TextLabel", {
+		Position = UDim2.fromOffset(290, y),
+		Size = UDim2.fromOffset(28, 26),
+		BackgroundTransparency = 1,
+		Text = "",
+		Font = Enum.Font.GothamBlack,
+		TextSize = 18,
+		TextColor3 = YELLOW,
+		Parent = statsPanel,
+	})
+	statRows[i] = { segments = segments, value = value }
+end
+local blurbLabel = make("TextLabel", {
+	Name = "Blurb",
+	Position = UDim2.fromOffset(16, 182),
+	Size = UDim2.fromOffset(298, 24),
+	BackgroundTransparency = 1,
+	Text = "",
+	Font = Enum.Font.GothamMedium,
+	TextSize = 15,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextColor3 = LIGHT,
+	Parent = statsPanel,
+})
+
 -- element, on-screen position, off-screen position (for the slide in/out)
 local layout = {
 	{ title, UDim2.new(0.5, 0, 0, 28), UDim2.new(0.5, 0, 0, -130) },
@@ -220,6 +311,8 @@ local layout = {
 	{ rightButton, UDim2.new(1, -36, 0.5, 0), UDim2.new(1, 170, 0.5, 0) },
 	{ card, UDim2.new(0.5, 0, 1, -40), UDim2.new(0.5, 0, 1, 320) },
 	{ hint, UDim2.new(0.5, 0, 1, -10), UDim2.new(0.5, 0, 1, 90) },
+	{ cashLabel, UDim2.new(0, 28, 0, 28), UDim2.new(0, -260, 0, 28) },
+	{ statsPanel, UDim2.new(1, -28, 0, 90), UDim2.new(1, 400, 0, 90) },
 }
 for _, entry in ipairs(layout) do
 	entry[1].Position = entry[3]
@@ -475,6 +568,80 @@ local function unfreezeCharacter()
 	frozen = nil
 end
 
+-- What the server says about this player: cash, owned weapons, equipped weapon (see WeaponShopService)
+local shopState = { cash = 0, owned = {}, equipped = nil }
+
+local function updateCash()
+	cashLabel.Text = "Cash: $" .. tostring(shopState.cash)
+end
+
+local function updateStats()
+	local item = catalog[index]
+	for i, name in ipairs(STAT_ORDER) do
+		local row = statRows[i]
+		local value = item.Stats and item.Stats[name]
+		for k = 1, 10 do
+			row.segments[k].BackgroundColor3 = (value and k <= value) and YELLOW or EMPTY
+		end
+		row.value.Text = value and tostring(value) or "?"
+	end
+	blurbLabel.Text = item.Blurb or ""
+end
+
+-- the main button is BUY $price -> EQUIP -> UNEQUIP (COMING SOON while an item has no price yet)
+local function updateButton()
+	if buyBusy then
+		return
+	end
+	local item = catalog[index]
+	if typeof(item.Price) ~= "number" then
+		buyButton.Text = "COMING SOON"
+		buyButton.BackgroundColor3 = GREY
+	elseif shopState.owned[item.Id] then
+		if shopState.equipped == item.Id then
+			buyButton.Text = "UNEQUIP"
+			buyButton.BackgroundColor3 = GREY
+		else
+			buyButton.Text = "EQUIP"
+			buyButton.BackgroundColor3 = BLUE
+		end
+	else
+		buyButton.Text = "BUY  $" .. tostring(item.Price)
+		buyButton.BackgroundColor3 = GREEN
+	end
+end
+
+local function applyState(newState)
+	shopState.cash = tonumber(newState.cash) or 0
+	shopState.owned = typeof(newState.owned) == "table" and newState.owned or {}
+	shopState.equipped = newState.equipped
+	updateCash()
+	updateButton()
+end
+
+local function refreshState()
+	if not remote then
+		return
+	end
+	task.spawn(function()
+		local ok, _, _, newState = pcall(remote.InvokeServer, remote, "State")
+		if ok and typeof(newState) == "table" then
+			applyState(newState)
+		end
+	end)
+end
+
+-- show a short message on the button, then go back to its normal text
+local function flash(text, color)
+	buyBusy = true
+	buyButton.Text = text
+	buyButton.BackgroundColor3 = color
+	task.delay(1.1, function()
+		buyBusy = false
+		updateButton()
+	end)
+end
+
 local function updateLabels()
 	local item = catalog[index]
 	nameLabel.Text = item.Name
@@ -484,6 +651,8 @@ local function updateLabels()
 	else
 		priceLabel.Text = "Price: ???"
 	end
+	updateStats()
+	updateButton()
 end
 
 local function step(direction)
@@ -563,6 +732,7 @@ local function enterShop()
 
 	index = math.clamp(index, 1, #catalog)
 	updateLabels()
+	refreshState()
 	hint.Text = hintText()
 	turntable = makeTurntable()
 	showPreview(index, 0)
@@ -629,18 +799,54 @@ closeButton.Activated:Connect(function()
 	leaveShop(true)
 end)
 buyButton.Activated:Connect(function()
-	if buyBusy or state ~= "open" then
+	if buyBusy or state ~= "open" or not remote then
 		return
 	end
-	buyBusy = true
-	buyButton.Text = "COMING SOON"
-	buyButton.BackgroundColor3 = GREY
-	task.delay(1.2, function()
-		buyButton.Text = "BUY"
-		buyButton.BackgroundColor3 = GREEN
-		buyBusy = false
-	end)
+	local item = catalog[index]
+	if typeof(item.Price) ~= "number" then
+		return -- placeholder item, nothing to buy yet
+	end
+	local action = shopState.owned[item.Id] and "Equip" or "Buy"
+	buyBusy = true -- hold the button while the server answers
+	local ok, success, message, newState = pcall(remote.InvokeServer, remote, action, item.Id)
+	buyBusy = false
+	if ok and typeof(newState) == "table" then
+		applyState(newState)
+	end
+	if ok and success then
+		if action == "Buy" then
+			flash("BOUGHT!", GREEN)
+		else
+			updateButton()
+		end
+	else
+		flash(string.upper(ok and tostring(message) or "ERROR"), RED)
+	end
 end)
+
+-- keep cash / ownership / equipped in step with the server (also when the weapon is equipped from the hotbar)
+player.AttributeChanged:Connect(function(name)
+	if name == "EquippedWeapon" then
+		shopState.equipped = player:GetAttribute(name)
+		updateButton()
+	elseif name:sub(1, 5) == "Owns_" then
+		shopState.owned[name:sub(6)] = player:GetAttribute(name) == true or nil
+		updateButton()
+	end
+end)
+task.spawn(function()
+	local stats = player:WaitForChild("leaderstats", 15)
+	local cash = stats and stats:WaitForChild("Cash", 15)
+	if cash then
+		shopState.cash = cash.Value
+		updateCash()
+		cash.Changed:Connect(function(value)
+			shopState.cash = value
+			updateCash()
+		end)
+	end
+end)
+refreshState()
 
 ---------------------------------------------------------------- the ring
 RunService.Heartbeat:Connect(function()
