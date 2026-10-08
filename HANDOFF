@@ -107,3 +107,10 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Branch: claude/bunny-model
 - Status: done — five detailed smooth cartoon animals modelled in Blender 5.2 (headless script): Frog 7.4k tris, Mouse 5.7k, Squirrel 8.1k, Hedgehog 6.6k, Duckling 4.5k. Each exported as FBX + OBJ (feet on z=0, facing +Y, vertex colours + materials) plus Small_Animals.blend and Cycles preview renders. NOT imported into Studio (needs the Studio 3D Importer / Asset Manager bulk import; check that vertex colours survive and set MeshPart Size if the scale is off). Not wired to any behaviour.
 - Link: https://github.com/35zi/mcp-server/commit/0620f14
+
+## Claude — 2026-10-08 00:53 UTC
+- Task: Redo the five small animals (Frog, Mouse, Squirrel, Hedgehog, Duckling) in the owner's reference style: chunky beveled-block, hard-edged, flat-colour "voxel creature" look (not smooth blobs), more detail than the first block version. Blender script → FBX/OBJ + previews. Replaces the smooth set as the preferred version.
+- Files: models/blender/animals/small_animals_blocky.py and models/blender/animals/out_blocky/* (new)
+- Branch: claude/bunny-model
+- Status: in progress
+- Link: n/a
