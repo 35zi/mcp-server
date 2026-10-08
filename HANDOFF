@@ -100,3 +100,10 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Branch: claude/bunny-model
 - Status: in progress
 - Link: n/a
+
+## Claude — 2026-10-08 00:28 UTC
+- Task: Higher-detail Blender versions of the five small animals (Frog, Mouse, Squirrel, Hedgehog, Duckling) — smooth sculpted meshes instead of stacked blocks, headless Blender 5.2 script, exported FBX/OBJ per animal + previews. Not imported into Studio yet.
+- Files: models/blender/animals/small_animals.py and models/blender/animals/out/* (new)
+- Branch: claude/bunny-model
+- Status: in progress
+- Link: n/a
