@@ -121,3 +121,10 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Branch: claude/bunny-model
 - Status: done — blocky Python revolver: 1.4k tris, 8.8 x 5.2 x 1.95 studs, +Y forward, centred origin, materials + vertex colours; chamfered drum with 6 chamber holes, brass muzzle ring/medallions/butt cap, square trigger guard, big iron sight (orange front post level with the rear notch uprights, white marks). FBX/OBJ/.blend + previews incl. sight view. This is now the PREFERRED revolver (smooth one is in models/blender/out). NOT imported into Studio (needs Asset Manager > Bulk Import by the owner); not wired to a weapon script.
 - Link: https://github.com/35zi/mcp-server/commit/04531ca
+
+## Claude — 2026-10-08 01:08 UTC
+- Task: Python revolver as a buyable + equippable weapon in the Weapon Shop. Catalog entry "Python" (bad stats: Damage 1, Range 1, Fire Rate 1, Accuracy 1), stats shown in the shop view, BUY → EQUIP → UNEQUIP, a real Tool (built from Parts in the blocky revolver design, to be swapped for the Blender mesh once imported). Needs a currency: none exists (Codex's plots add no economy), so I add a MINIMAL PLACEHOLDER: leaderstats.Cash (starts at 100) behind 3 small adapter functions in WeaponShopService, for Codex to replace with the real economy. Ownership is session-only (no DataStore) for now. No shooting yet.
+- Files: models/weaponshop/WeaponShopCatalog.lua, WeaponShopClient.client.lua (updated), WeaponShopService.server.lua, BuildPythonTool.lua (new). Studio: ReplicatedStorage.WeaponShopCatalog / WeaponShopRemote / WeaponShopPreviews.Python, ServerStorage.WeaponTools.Python, ServerScriptService.WeaponShopService, StarterPlayerScripts.WeaponShopClient. Codex's PlotService/PlotManager and the plots are not touched.
+- Branch: claude/bunny-model
+- Status: in progress
+- Link: n/a
