@@ -203,3 +203,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Status: done — playtested: Frog/Bunny carried slung head-down over the right shoulder, right arm raised holding it while walking, gun put away; income Small Bunny $1/s, Large Fox $90/s, Medium Camel $66/s, Medium Gold Frog $6/s = $163/s total, Cash ticking up each second, HUD "+$163/s" + big Cash, plot sign "$163/s"; placed animals wander 10-15 studs inside the plot fence and keep apart. Console clean.
   NOTE for Codex: this place's avatars use the new AnimationConstraint joints (not Motor6D) — C0/C1 are read-only there; pose joints through .Transform on the client after animations (see AnimalClient). Plot income: player attribute IncomePerSecond (+ the plot sign's Income label is written by InventoryService at runtime — move that into PlotService if you prefer). Cash still lives behind CashAdapter (leaderstats.Cash, not saved). Income numbers: AnimalData (income per species, SizeIncome, MutationIncome). Place not saved by me — save in Studio.
 - Link: https://github.com/35zi/mcp-server/commit/72ed309
+
+## Claude — 2026-10-08 22:40 UTC
+- Task (CLAIM, in progress): owner's request — shot-down animals are STUNNED, not dead: they lie with stars + a 10 s countdown; picking one up stops the timer, dropping it (new Drop button / G, or dying) restarts it; if the timer runs out the animal stands up and runs off as a live animal again (full health, hops back into its own zone). Also: make the Automatic Rifle's iron sights much slimmer.
+- Files: models/game/AnimalCarry, AnimalManager, AnimalData, AnimalClient, AnimalMenuClient; models/weaponshop (rifle sight parts: BuildWeapons.lua + Studio ServerStorage.WeaponTools.AutomaticRifle / WeaponModels / WeaponShopPreviews).
+- Branch: claude/bunny-model
+- Status: in progress
