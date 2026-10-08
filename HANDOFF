@@ -86,3 +86,10 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Branch: claude/bunny-model
 - Status: done — cartoon Python revolver modeled (3.7k tris, 7.4 x 4.2 x 1.6 studs, +Y forward, vertex colors + materials), exported FBX/OBJ/.blend + 4 preview renders incl. iron-sight view. NOT imported into Studio yet (needs the Studio 3D Importer; mesh upload can not be done from here), no Blender MCP installed (waiting on owner OK). Not wired to any weapon script.
 - Link: https://github.com/35zi/mcp-server/commit/59c31ea
+
+## Claude — 2026-10-08 00:08 UTC
+- Task: Weapon shop "shop view" — remove the old E/ProximityPrompt menu; stepping on the neon ring in front of the shop flies the camera to the counter and opens a browse UI (arrows, item name/price/count, BUY = coming soon, X/Backspace to leave). Placeholder preview items only — no gun models, prices or stats yet.
+- Files: models/weaponshop/WeaponShopClient.client.lua, models/weaponshop/WeaponShopCatalog.lua, models/weaponshop/InstallShopView.lua (new); models/BuildWeaponShop.lua (prompt/menu removed). Studio: Workspace.WeaponShop (remove ShopPromptAnchor/ShopMenu/ShopServer, add ShopView markers), StarterPlayer.StarterPlayerScripts.WeaponShopClient, ReplicatedStorage.WeaponShopCatalog. The owner's "Sell point" ring is only read for its position, not modified.
+- Branch: claude/bunny-model
+- Status: in progress
+- Link: n/a
