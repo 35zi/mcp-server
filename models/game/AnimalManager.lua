@@ -160,8 +160,15 @@ local function rollSpecies(worldId)
 	if #available == 0 then
 		return nil
 	end
+	-- a rarity tier keeps its overall chance however many species share it (two Legendaries split it)
+	local tierCount = {}
+	for _, name in ipairs(available) do
+		local r = SPECIES[name].rarity
+		tierCount[r] = (tierCount[r] or 0) + 1
+	end
 	return pickWeighted(available, function(name)
-		return AnimalData.Rarities[SPECIES[name].rarity].weight
+		local r = SPECIES[name].rarity
+		return AnimalData.Rarities[r].weight / tierCount[r]
 	end)
 end
 

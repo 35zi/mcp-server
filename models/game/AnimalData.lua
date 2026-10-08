@@ -21,7 +21,7 @@ AnimalData.MutationIncome = { Gold = 3, Silver = 1.5 }
 
 AnimalData.Worlds = {
 	{ id = 1, name = "Forest", species = { "Bunny", "Frog", "Hedgehog", "Fox" } },
-	{ id = 2, name = "Desert", species = { "Spider", "Turkey", "Scorpion", "Camel" } },
+	{ id = 2, name = "Desert", species = { "Spider", "Turkey", "Scorpion", "Camel", "Vulture" } },
 }
 
 AnimalData.RarityOrder = { "Common", "Uncommon", "Rare", "Legendary" }
@@ -43,6 +43,7 @@ AnimalData.Species = {
 	Turkey = { world = 2, rarity = "Uncommon", hp = 18, value = 45, income = 6, hopHeight = 0.4, hopDist = 1.8, hopTime = 0.22, walk = true },
 	Scorpion = { world = 2, rarity = "Rare", hp = 26, value = 110, income = 15, hopHeight = 0.12, hopDist = 1.5, hopTime = 0.16, walk = true },
 	Camel = { world = 2, rarity = "Legendary", hp = 45, value = 500, income = 66, hopHeight = 0.45, hopDist = 3.6, hopTime = 0.5, walk = true },
+	Vulture = { world = 2, rarity = "Legendary", hp = 35, value = 450, income = 70, hopHeight = 0.5, hopDist = 3.2, hopTime = 0.4, walk = true },
 }
 
 -- spawns ABOVE this rarity are announced to everyone with a big message when the wave brings them

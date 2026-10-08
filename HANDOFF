@@ -230,3 +230,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Files: models/game/AnimalData.lua, AnimalManager.lua, AnimalClient.client.lua, BuildDecor.lua. Studio: patched + Workspace.Decor rebuilt.
 - Branch: claude/bunny-model
 - Status: done — playtested: wave targets vary 2..5 per world, console clean. Place not saved by me — save in Studio.
+
+## Claude — 2026-10-09 01:40 UTC
+- Task: owner's request — add the eagle/vulture as a Legendary in World 2 (Desert). Codex's `vulture` model was loose in Workspace: now ServerStorage.AnimalTemplates.Vulture (x2.5, PrimaryPart Vulture_Body). Species "Vulture" (Legendary, income 70) added to the Desert in AnimalData. A rarity tier now keeps its overall spawn chance when it has two species (Camel + Vulture split the Legendary weight).
+- Files: models/game/AnimalData.lua, AnimalManager.lua (rollSpecies), SetupGameWorld.lua (MOVE list).
+- Branch: claude/bunny-model
+- Status: done — template measured 4.8 x 7.3 x 8.5 studs and seen in game; console clean. Place not saved by me — save in Studio.

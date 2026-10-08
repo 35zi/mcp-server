@@ -68,6 +68,7 @@ local MOVE = {
 	{ "spider", "Spider", "Spider_Abdomen", 1.25 },
 	{ "scorpion", "Scorpion", nil, 1.4 },
 	{ "camel", "Camel", nil, 3.5 },
+	{ "vulture", "Vulture", nil, 2.5 },
 }
 local templates = folder(ServerStorage, "AnimalTemplates")
 for _, pair in ipairs(MOVE) do
