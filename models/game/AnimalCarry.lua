@@ -2,7 +2,8 @@
 --
 -- What happens after an animal is shot dead:
 --   1. it topples over and lies on the ground in Workspace.AnimalBodies (no money is paid)
---   2. only the player who killed it can pick it up (ProximityPrompt, E) - you carry one at a time, over your head
+--   2. only the player who killed it can pick it up (ProximityPrompt, E) - you carry one at a time, slung over your
+--      right shoulder (hanging head-down your back, your right arm raised holding it; tools are put away meanwhile)
 --   3. carry it over the red line (Workspace.RedLine, back towards the plots) and it goes into your inventory
 --      (InventoryAdapter) and unlocks it in your Index (player attribute Caught_<Species> = how many you brought home)
 -- If you die while carrying, it drops where you died. Bodies nobody picks up vanish after BODY_LIFETIME seconds.
@@ -18,7 +19,7 @@ local AnimalCarry = {}
 
 local BODY_LIFETIME = 120 -- seconds an uncollected body stays
 local PICKUP_DISTANCE = 12
-local MAX_CARRY_SIZE = 5 -- studs: bigger bodies are shrunk while carried so they fit over your head
+local MAX_CARRY_SIZE = 3.6 -- studs: bigger bodies are shrunk while carried so they fit on your shoulder
 local TOPPLE_TIME = 0.3
 
 local bodiesFolder = workspace:FindFirstChild("AnimalBodies")
@@ -112,12 +113,16 @@ local function groundPose(info, pos, yaw, t)
 	return CFrame.new(pos + Vector3.new(0, info.width / 2 * math.sin(roll), 0)) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(0, 0, roll)
 end
 
--- on the carrier's shoulders: on its side, nose pointing left, centred over the head (relative to HumanoidRootPart)
-local function carryPose(info)
-	return CFrame.new(0, 2.7 + info.width / 2, 0.15)
-		* CFrame.Angles(0, math.rad(90), 0)
-		* CFrame.Angles(0, 0, math.rad(90))
-		* CFrame.new(0, -info.height / 2, 0)
+-- slung over the right shoulder, relative to the torso: hanging head-down your back with its belly against it,
+-- its hind end at the top of the shoulder where the hand holds it.
+-- (Animal axes: X width, Y up, Z length with the nose at -Z; the root is the bottom centre.)
+-- The raised arm is posed on every client by AnimalClient (player attribute Carrying).
+local HANG = CFrame.fromMatrix(Vector3.zero, Vector3.new(-1, 0, 0), Vector3.new(0, 0, 1), Vector3.new(0, 1, 0))
+local function carryPose(info, torso)
+	local x = torso.Size.X / 2 - 0.4 -- over the right shoulder blade
+	local y = torso.Size.Y / 2 + 0.3 - info.length / 2 -- hind end just above the shoulder
+	local z = torso.Size.Z / 2 + 0.02 -- against the back
+	return CFrame.new(x, y, z) * HANG
 end
 
 local function setScale(body, k)
@@ -235,7 +240,21 @@ pickUp = function(player, body)
 		setScale(body, body.carryScale)
 	end
 
-	local base = root.CFrame * carryPose(info)
+	-- hands free: put any tool away, and keep it away while carrying
+	humanoid:UnequipTools()
+	body.toolWatch = character.ChildAdded:Connect(function(child)
+		if child:IsA("Tool") then
+			task.defer(function()
+				if carrying[player] == body then
+					humanoid:UnequipTools()
+					notify(player, "Your hands are full - take it over the red line first!")
+				end
+			end)
+		end
+	end)
+
+	local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso") or root
+	local base = torso.CFrame * carryPose(info, torso)
 	for i, p in ipairs(info.parts) do
 		p.CFrame = base * info.offsets[i]
 	end
@@ -244,12 +263,20 @@ pickUp = function(player, body)
 		p.Massless = true
 		local weld = Instance.new("WeldConstraint")
 		weld.Name = "CarryWeld"
-		weld.Part0 = root
+		weld.Part0 = torso
 		weld.Part1 = p
 		weld.Parent = p
 		p.Anchored = false
 	end
-	player:SetAttribute("Carrying", displayName(info))
+	player:SetAttribute("Carrying", displayName(info)) -- also tells every client to pose the holding arm
+end
+
+-- the carry is over (dropped, delivered): tools allowed again (the arm drops when Carrying is cleared)
+local function endCarry(body)
+	if body.toolWatch then
+		body.toolWatch:Disconnect()
+		body.toolWatch = nil
+	end
 end
 
 -- put down what the player carries where they stand (death, respawn); destroy = they left the game
@@ -259,6 +286,7 @@ local function drop(player, destroy)
 		return
 	end
 	carrying[player] = nil
+	endCarry(body)
 	if player.Parent then
 		player:SetAttribute("Carrying", nil)
 	end
@@ -286,6 +314,7 @@ end
 
 local function deliver(player, body)
 	carrying[player] = nil
+	endCarry(body)
 	bodies[body.model] = nil
 	player:SetAttribute("Carrying", nil)
 	local info = body.info

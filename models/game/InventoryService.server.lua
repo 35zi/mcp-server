@@ -7,7 +7,10 @@
 --     :InvokeServer("Bag", id)    back into the bag (from your plot or your hand)
 -- Entries are the Folders in player.AnimalInventory (InventoryAdapter); their State attribute says where each is.
 -- Placed animals live in Workspace.PlotAnimals.<UserId>; the owner can also walk up to one and press E to take it
--- back. Your plot comes from Codex's plot system: player attribute PlotName -> Workspace.<PlotName> (its Hitbox is
+-- back. They wander around the plot (PlotAnimalsClient) and EARN CASH: every second each one pays its Income
+-- (AnimalData.Income) through CashAdapter. Player attribute IncomePerSecond = the total; it is also written into the
+-- plot sign's Income label (Plot.Hitbox.PlayerUI.Frame.Bottom.Income).
+-- Your plot comes from Codex's plot system: player attribute PlotName -> Workspace.<PlotName> (its Hitbox is
 -- the area). Nothing is saved yet (no DataStore); selling comes later.
 -- Also builds ReplicatedStorage.AnimalPreviews (one Medium model per species) for the menus' pictures.
 local Players = game:GetService("Players")
@@ -17,6 +20,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local AnimalData = require(ReplicatedStorage:WaitForChild("AnimalData"))
 local AnimalManager = require(ServerScriptService:WaitForChild("AnimalManager"))
 local InventoryAdapter = require(ServerScriptService:WaitForChild("InventoryAdapter"))
+local CashAdapter = require(ServerScriptService:WaitForChild("CashAdapter"))
 
 local MAX_PER_PLOT = 24
 local HOLD_SIZE = 2.6 -- studs: held animals are shrunk to fit in a hand
@@ -243,27 +247,41 @@ local function placeOnPlot(player, item)
 	workspace:BulkMoveTo(parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
 	model:SetAttribute("OwnerUserId", player.UserId)
 	model:SetAttribute("EntryId", item:GetAttribute("Id"))
+	-- where it may wander (PlotAnimalsClient moves it around on every client; the server keeps it still)
+	model:SetAttribute("Species", item:GetAttribute("Species"))
+	model:SetAttribute("Scale", AnimalData.SizeScale[item:GetAttribute("Size")] or 1)
+	model:SetAttribute("AreaCFrame", CFrame.new(hitbox.Position.X, spot.Y, hitbox.Position.Z) * hitbox.CFrame.Rotation)
+	model:SetAttribute("AreaHalf", Vector2.new(hx, hz))
+	if spawnPoint then
+		model:SetAttribute("Avoid", spawnPoint.Position)
+	end
+	model.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
 
-	-- name tag (UIStyle look: chunky white text, dark outline)
+	-- name tag + income (UIStyle look: chunky white text, dark outline)
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "PlotTag"
-	gui.Size = UDim2.fromOffset(160, 24)
-	gui.StudsOffsetWorldSpace = Vector3.new(0, spot.Y + box.Y - model.PrimaryPart.Position.Y + 1.2, 0) -- just above its head
+	gui.Size = UDim2.fromOffset(170, 46)
+	gui.StudsOffsetWorldSpace = Vector3.new(0, spot.Y + box.Y - model.PrimaryPart.Position.Y + 1.8, 0) -- just above its head
 	gui.MaxDistance = 60
 	gui.LightInfluence = 0
 	gui.Adornee = model.PrimaryPart
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Text = nameOf(item)
-	label.Font = Enum.Font.FredokaOne
-	label.TextScaled = true
-	label.TextColor3 = Color3.new(1, 1, 1)
-	label.Parent = gui
-	local stroke = Instance.new("UIStroke")
-	stroke.Thickness = 2.5
-	stroke.Color = Color3.fromRGB(24, 18, 28)
-	stroke.Parent = label
+	local function tagLine(text, color, y, height)
+		local label = Instance.new("TextLabel")
+		label.Position = UDim2.new(0, 0, 0, y)
+		label.Size = UDim2.new(1, 0, 0, height)
+		label.BackgroundTransparency = 1
+		label.Text = text
+		label.Font = Enum.Font.FredokaOne
+		label.TextScaled = true
+		label.TextColor3 = color
+		label.Parent = gui
+		local stroke = Instance.new("UIStroke")
+		stroke.Thickness = 2.5
+		stroke.Color = Color3.fromRGB(24, 18, 28)
+		stroke.Parent = label
+	end
+	tagLine(nameOf(item), Color3.new(1, 1, 1), 0, 22)
+	tagLine("$" .. AnimalData.Commas(item:GetAttribute("Income") or 0) .. "/s", Color3.fromRGB(95, 255, 95), 23, 22)
 	gui.Parent = model.PrimaryPart
 
 	local prompt = Instance.new("ProximityPrompt")
@@ -361,8 +379,67 @@ remote.OnServerInvoke = function(player, action, id)
 	return success, message
 end
 
+---------------------------------------------------------------- plot income
+local function signLabel(plot)
+	local ui = plot and plot:FindFirstChild("Hitbox") and plot.Hitbox:FindFirstChild("PlayerUI")
+	local frame = ui and ui:FindFirstChild("Frame")
+	local bottom = frame and frame:FindFirstChild("Bottom")
+	local label = bottom and bottom:FindFirstChild("Income")
+	return label and label:IsA("TextLabel") and label or nil
+end
+
+local function incomeOf(player)
+	local total = 0
+	local inventory = player:FindFirstChild("AnimalInventory")
+	if inventory then
+		for _, item in ipairs(inventory:GetChildren()) do
+			if item:GetAttribute("State") == "Plot" then
+				total += item:GetAttribute("Income") or 0
+			end
+		end
+	end
+	return total
+end
+
+-- plots nobody owns show $0/s instead of the sign's placeholder
+for _, plot in ipairs(workspace:GetChildren()) do
+	if plot:IsA("Model") and plot.Name:match("^Plot%d+$") and (plot:GetAttribute("OwnerUserId") or 0) == 0 then
+		local label = signLabel(plot)
+		if label then
+			label.Text = "$0/s"
+		end
+	end
+end
+
+local signPlot = {} -- [player] = the plot whose sign shows their income (kept for when they leave)
+task.spawn(function()
+	while true do
+		task.wait(1)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local income = incomeOf(player)
+			if player:GetAttribute("IncomePerSecond") ~= income then
+				player:SetAttribute("IncomePerSecond", income)
+			end
+			local plot = plotOf(player)
+			local label = signLabel(plot)
+			if label then
+				signPlot[player] = plot
+				label.Text = "$" .. AnimalData.Commas(income) .. "/s"
+			end
+			if income > 0 then
+				CashAdapter.Add(player, income)
+			end
+		end
+	end
+end)
+
 Players.PlayerRemoving:Connect(function(player)
 	busy[player] = nil
+	local label = signLabel(signPlot[player])
+	signPlot[player] = nil
+	if label then
+		label.Text = "$0/s"
+	end
 	local folder = plotAnimals:FindFirstChild(tostring(player.UserId))
 	if folder then
 		folder:Destroy()

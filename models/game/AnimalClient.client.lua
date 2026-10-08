@@ -8,9 +8,11 @@
 --     red line (AnimalCarry)
 --   * pick-up prompts on dead animals and plot animals only show for their owner
 --   * a banner for everyone when a Legendary or a Gold / Silver animal appears
---   * a small HUD (bottom left): animals in your bag + time until the next wave
+--   * a small HUD (bottom left): time until the next wave, animals in your bag + plot income, your Cash
+--   * anyone carrying an animal (player attribute Carrying): their right arm is raised, holding it on the shoulder
 -- Look: ReplicatedStorage.UIStyle.
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
@@ -178,37 +180,77 @@ end)
 local hud = make("Frame", {
 	Name = "Bag",
 	AnchorPoint = Vector2.new(0, 1),
-	Position = UDim2.new(0, 18, 1, -16),
-	Size = UDim2.fromOffset(320, 76),
+	Position = UDim2.new(0, 18, 1, -14),
+	Size = UDim2.fromOffset(380, 114),
 	BackgroundTransparency = 1,
 	Parent = gui,
 })
 local waveLabel = text({
-	Size = UDim2.new(1, 0, 0, 28),
+	Size = UDim2.new(1, 0, 0, 26),
 	Text = "",
-	TextSize = 21,
+	TextSize = 20,
 	TextXAlignment = Enum.TextXAlignment.Left,
 	Parent = hud,
 })
 local bagCount = text({
-	Position = UDim2.fromOffset(0, 28),
-	Size = UDim2.new(1, 0, 0, 46),
+	Position = UDim2.fromOffset(0, 26),
+	Size = UDim2.new(1, 0, 0, 30),
 	Text = "",
-	TextSize = 38,
-	Stroke = 3.5,
+	TextSize = 26,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Parent = hud,
+})
+local cashLabel = text({
+	Position = UDim2.fromOffset(0, 56),
+	Size = UDim2.new(1, 0, 0, 56),
+	Text = "$0",
+	TextSize = 50,
+	Stroke = 4.5,
 	TextColor3 = UIStyle.Colors.Money,
 	TextXAlignment = Enum.TextXAlignment.Left,
 	Parent = hud,
 })
 local function updateBag()
 	local count = player:GetAttribute("AnimalCount") or 0
-	bagCount.Text = string.format("🐾 %d %s", count, count == 1 and "Animal" or "Animals")
+	local income = player:GetAttribute("IncomePerSecond") or 0
+	bagCount.Text = string.format("🐾 %d %s%s", count, count == 1 and "Animal" or "Animals", income > 0 and string.format("  •  +$%s/s", AnimalData.Commas(income)) or "")
 end
 player:GetAttributeChangedSignal("AnimalCount"):Connect(function()
 	updateBag()
 	UIStyle.pop(bagCount)
 end)
+player:GetAttributeChangedSignal("IncomePerSecond"):Connect(updateBag)
 updateBag()
+
+-- Cash (leaderstats.Cash, see CashAdapter): big and green, with a "+$12" that floats up when it goes up
+task.spawn(function()
+	local cash = player:WaitForChild("leaderstats"):WaitForChild("Cash")
+	local last = cash.Value
+	local function show()
+		cashLabel.Text = "$" .. AnimalData.Commas(cash.Value)
+	end
+	cash.Changed:Connect(function()
+		local gained = cash.Value - last
+		last = cash.Value
+		show()
+		if gained > 0 and gui.Enabled then
+			local float = text({
+				Position = UDim2.fromOffset(cashLabel.TextBounds.X + 14, 66),
+				Size = UDim2.fromOffset(160, 30),
+				Text = "+$" .. AnimalData.Commas(gained),
+				TextSize = 26,
+				TextColor3 = UIStyle.Colors.Money,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Parent = hud,
+			})
+			local info = TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+			TweenService:Create(float, info, { Position = float.Position - UDim2.fromOffset(0, 34), TextTransparency = 1 }):Play()
+			TweenService:Create(float:FindFirstChildOfClass("UIStroke"), info, { Transparency = 1 }):Play()
+			Debris:AddItem(float, 1)
+		end
+	end)
+	show()
+end)
 task.spawn(function()
 	while true do
 		local nextAt = animalsFolder:GetAttribute("NextWaveAt")
@@ -390,3 +432,29 @@ for _, name in ipairs({ "AnimalBodies", "PlotAnimals" }) do
 		end
 	end)
 end
+
+---------------------------------------------------------------- carriers: the right arm holds the animal on the shoulder
+-- Anyone carrying (player attribute Carrying, set by AnimalCarry) gets their right arm posed right after the
+-- animations run (PreSimulation), every frame, for every carrier we can see: upper arm raised up and forward, elbow
+-- bent back so the hand grips the animal's hind end on top of the shoulder. Works for Motor6D joints and for the
+-- newer AnimationConstraint joints (both have a Transform the animations write).
+local ARM_POSE = {
+	{ "RightUpperArm", "RightShoulder", CFrame.Angles(math.rad(155), 0, math.rad(-28)) },
+	{ "RightLowerArm", "RightElbow", CFrame.Angles(math.rad(125), 0, 0) },
+	{ "RightHand", "RightWrist", CFrame.identity },
+	{ "Torso", "Right Shoulder", CFrame.Angles(0, 0, math.rad(170)) }, -- R6
+}
+RunService.PreSimulation:Connect(function()
+	for _, p in ipairs(Players:GetPlayers()) do
+		local character = p.Character
+		if character and p:GetAttribute("Carrying") then
+			for _, joint in ipairs(ARM_POSE) do
+				local holder = character:FindFirstChild(joint[1])
+				local j = holder and holder:FindFirstChild(joint[2])
+				if j and (j:IsA("Motor6D") or j:IsA("AnimationConstraint")) then
+					j.Transform = joint[3]
+				end
+			end
+		end
+	end
+end)

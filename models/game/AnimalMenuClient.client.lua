@@ -143,7 +143,7 @@ local function renderIndex()
 		text({
 			Position = UDim2.fromOffset(4, 228),
 			Size = UDim2.new(1, -8, 0, 48),
-			Text = known and string.format("Caught: %d", count) or "Not caught yet",
+			Text = known and string.format("Caught: %d\n💰 $%s/s", count, AnimalData.Commas(AnimalData.Income(species, "Medium", "None"))) or "Not caught yet",
 			TextWrapped = true,
 			TextSize = 19,
 			TextColor3 = known and C.White or Color3.fromRGB(225, 225, 230),
@@ -193,7 +193,7 @@ local emptyLabel = text({
 })
 
 local inventory = player:WaitForChild("AnimalInventory", 5)
-local STATE_TEXT = { Bag = "In your bag", Held = "In your hand", Plot = "On your plot" }
+local STATE_TEXT = { Bag = "In bag", Held = "In hand", Plot = "On plot" }
 local rarityRank = {}
 for i, r in ipairs(AnimalData.RarityOrder) do
 	rarityRank[r] = i
@@ -250,7 +250,7 @@ local function renderBag()
 		text({
 			Position = UDim2.fromOffset(86, 42),
 			Size = UDim2.new(1, -370, 0, 24),
-			Text = string.format("%s  •  %s", string.upper(a.Rarity or "Common"), STATE_TEXT[a.State] or ""),
+			Text = string.format("%s  •  $%s/s  •  %s", string.upper(a.Rarity or "Common"), AnimalData.Commas(a.Income or 0), STATE_TEXT[a.State] or ""),
 			TextSize = 17,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Parent = row,

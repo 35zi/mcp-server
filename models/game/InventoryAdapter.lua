@@ -4,11 +4,12 @@
 -- (NOT saved). Each animal becomes a Folder inside player.AnimalInventory (it replicates, so clients can list it):
 --   name = its Id; attributes Id, Species ("Frog"), Size ("Small" | "Medium" | "Large"),
 --   Mutation ("None" | "Gold" | "Silver"), Rarity, World, Value (number, for selling later), CaughtAt,
+--   Income (Cash per second while on the plot, from AnimalData.Income),
 --   State ("Bag" = in the inventory, "Held" = in the player's hand, "Plot" = placed on their plot)
 -- Player attribute AnimalCount holds the total. Replace these functions with the real inventory when it exists.
-local InventoryAdapter = {}
+local AnimalData = require(game:GetService("ReplicatedStorage"):WaitForChild("AnimalData"))
 
-local nextId = 0
+local InventoryAdapter = {}
 
 local function folderOf(player)
 	local folder = player:FindFirstChild("AnimalInventory")
@@ -22,7 +23,9 @@ end
 
 function InventoryAdapter.Add(player, entry)
 	local folder = folderOf(player)
-	nextId += 1
+	-- ids count up per player (kept on the player, so every script that adds animals agrees)
+	local nextId = (player:GetAttribute("LastAnimalId") or 0) + 1
+	player:SetAttribute("LastAnimalId", nextId)
 	local item = Instance.new("Folder")
 	item.Name = tostring(nextId)
 	item:SetAttribute("Id", nextId)
@@ -32,6 +35,7 @@ function InventoryAdapter.Add(player, entry)
 	item:SetAttribute("Rarity", entry.Rarity)
 	item:SetAttribute("World", entry.World)
 	item:SetAttribute("Value", entry.Value)
+	item:SetAttribute("Income", AnimalData.Income(entry.Species, entry.Size, entry.Mutation))
 	item:SetAttribute("CaughtAt", os.time())
 	item:SetAttribute("State", "Bag")
 	item.Parent = folder

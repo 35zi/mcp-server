@@ -5,10 +5,16 @@
 --
 --   Worlds    in order; zone = the World attribute on the Parts in Workspace.AnimalSpawnZones
 --   Rarities  weight = how often a spawn picks that tier inside its world (the weights are relative)
---   Species   world, rarity, hp / value for a Medium animal, how it moves:
+--   Species   world, rarity, hp / value for a Medium animal,
+--             income = Cash per second it earns while placed on your plot (Medium, no mutation), how it moves:
 --               hopHeight / hopDist / hopTime  (studs, studs, seconds per hop)
 --               walk = true  scuttles/walks instead of hopping (no dust puff on every step)
 local AnimalData = {}
+
+-- size of each size class (must match AnimalManager's SIZES) and what size / mutation do to plot income
+AnimalData.SizeScale = { Small = 0.75, Medium = 1, Large = 1.35 }
+AnimalData.SizeIncome = { Small = 0.8, Medium = 1, Large = 1.5 }
+AnimalData.MutationIncome = { Gold = 3, Silver = 1.5 }
 
 AnimalData.Worlds = {
 	{ id = 1, name = "Forest", species = { "Bunny", "Frog", "Hedgehog", "Fox" } },
@@ -25,20 +31,40 @@ AnimalData.Rarities = {
 
 AnimalData.Species = {
 	-- World 1: Forest
-	Bunny = { world = 1, rarity = "Common", hp = 10, value = 10, hopHeight = 2.2, hopDist = 4.5, hopTime = 0.5 },
-	Frog = { world = 1, rarity = "Uncommon", hp = 12, value = 25, hopHeight = 2.6, hopDist = 5.5, hopTime = 0.55 },
-	Hedgehog = { world = 1, rarity = "Rare", hp = 20, value = 60, hopHeight = 0.6, hopDist = 2.0, hopTime = 0.35 },
-	Fox = { world = 1, rarity = "Legendary", hp = 30, value = 250, hopHeight = 1.2, hopDist = 6.5, hopTime = 0.34 },
+	Bunny = { world = 1, rarity = "Common", hp = 10, value = 10, income = 1, hopHeight = 2.2, hopDist = 4.5, hopTime = 0.5 },
+	Frog = { world = 1, rarity = "Uncommon", hp = 12, value = 25, income = 2, hopHeight = 2.6, hopDist = 5.5, hopTime = 0.55 },
+	Hedgehog = { world = 1, rarity = "Rare", hp = 20, value = 60, income = 5, hopHeight = 0.6, hopDist = 2.0, hopTime = 0.35 },
+	Fox = { world = 1, rarity = "Legendary", hp = 30, value = 250, income = 60, hopHeight = 1.2, hopDist = 6.5, hopTime = 0.34 },
 	-- World 2: Desert
-	Spider = { world = 2, rarity = "Common", hp = 12, value = 20, hopHeight = 0.15, hopDist = 1.6, hopTime = 0.12, walk = true },
-	Turkey = { world = 2, rarity = "Uncommon", hp = 18, value = 45, hopHeight = 0.4, hopDist = 1.8, hopTime = 0.22, walk = true },
-	Scorpion = { world = 2, rarity = "Rare", hp = 26, value = 110, hopHeight = 0.12, hopDist = 1.5, hopTime = 0.16, walk = true },
-	Camel = { world = 2, rarity = "Legendary", hp = 45, value = 500, hopHeight = 0.45, hopDist = 3.6, hopTime = 0.5, walk = true },
+	Spider = { world = 2, rarity = "Common", hp = 12, value = 20, income = 3, hopHeight = 0.15, hopDist = 1.6, hopTime = 0.12, walk = true },
+	Turkey = { world = 2, rarity = "Uncommon", hp = 18, value = 45, income = 6, hopHeight = 0.4, hopDist = 1.8, hopTime = 0.22, walk = true },
+	Scorpion = { world = 2, rarity = "Rare", hp = 26, value = 110, income = 15, hopHeight = 0.12, hopDist = 1.5, hopTime = 0.16, walk = true },
+	Camel = { world = 2, rarity = "Legendary", hp = 45, value = 500, income = 66, hopHeight = 0.45, hopDist = 3.6, hopTime = 0.5, walk = true },
 }
 
 function AnimalData.WorldOf(species)
 	local s = AnimalData.Species[species]
 	return s and s.world
+end
+
+-- Cash per second this animal earns on a plot (whole dollars, at least 1)
+function AnimalData.Income(species, size, mutation)
+	local s = AnimalData.Species[species]
+	if not s then
+		return 0
+	end
+	local amount = (s.income or 1) * (AnimalData.SizeIncome[size] or 1) * (AnimalData.MutationIncome[mutation] or 1)
+	return math.max(1, math.floor(amount + 0.5))
+end
+
+-- 62189 -> "62,189"
+function AnimalData.Commas(n)
+	local s = tostring(math.floor(tonumber(n) or 0))
+	local sign, digits = s:match("^(-?)(%d+)$")
+	if not digits then
+		return s
+	end
+	return sign .. digits:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
 end
 
 -- "Large Gold Bunny", "Small Fox"
