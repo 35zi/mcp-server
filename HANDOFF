@@ -128,3 +128,10 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Branch: claude/bunny-model
 - Status: done — playtested in Studio: Python is item 1 ($50, stats 1/1/1/1 shown as 10-segment bars), BUY -> BOUGHT! -> EQUIP -> UNEQUIP works, Cash 100 -> 50, Tool lands in Backpack + StarterGear, held upright with the barrel pointing forward (default Grip), survives death/respawn (no double charge, 1 copy), hotbar equip/unequip keeps the shop in sync. Server rejects: not enough Cash, bad/unknown ids, equipping unowned, buying unpriced placeholders; 0.25 s rate limit. Console clean. NOT done: shooting, persistence (ownership + Cash are session-only, no DataStore), real economy. TEMP: leaderstats.Cash (starts 100) lives behind getCash/spendCash/setupCash in WeaponShopService — Codex, replace those 3 with the real economy. The tool is built from Parts in the blocky design; swap in the Blender mesh (models/blender/gun_blocky) once imported. Place not saved by me — save in Studio.
 - Link: https://github.com/35zi/mcp-server/commit/e34e04e
+
+## Claude — 2026-10-08 01:17 UTC
+- Task: Python stats changed on the owner's request: Range 1 -> 3, Accuracy 1 -> 2 (Damage 1, Fire Rate 1 unchanged)
+- Files: models/weaponshop/WeaponShopCatalog.lua; Studio: ReplicatedStorage.WeaponShopCatalog (same one-line change)
+- Branch: claude/bunny-model
+- Status: done — playtested: the shop bars show Damage 1, Range 3, Fire Rate 1, Accuracy 2. Place not saved by me — save in Studio.
+- Link: https://github.com/35zi/mcp-server/commit/85faa13
