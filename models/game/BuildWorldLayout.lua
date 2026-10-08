@@ -97,6 +97,48 @@ if redLine then
 	redLine.CFrame = CFrame.new(X_MID, redLine.Position.Y, redLine.Position.Z)
 end
 
+-- taller, thicker walls everywhere (home area too): every wall (a ~30-tall top-level Part, or one already raised)
+-- becomes WALL_HEIGHT tall and WALL_THICK thick, growing outwards so the play area stays the same; the thin
+-- coloured caps on top follow
+local WALL_HEIGHT, WALL_THICK = 50, 8
+local MAP_CENTRE = Vector3.new(1, 0, -600)
+local walls, caps = {}, {}
+for _, p in ipairs(workspace:GetChildren()) do
+	if p:IsA("BasePart") and p ~= redLine then
+		if p.Size.Y >= 29 and (p.Size.Y <= 31 or near(p.Size.Y, WALL_HEIGHT, 0.5)) then
+			table.insert(walls, p)
+		elseif p.Size.Y < 2 and p.Position.Y > 28 then
+			table.insert(caps, p)
+		end
+	end
+end
+local function resize(p, height, bottom, top)
+	-- thickness = the shorter horizontal side; push it outwards (away from the map centre)
+	local thickAxisIsX = p.Size.X < p.Size.Z
+	local axis = thickAxisIsX and p.CFrame.RightVector or p.CFrame.LookVector
+	local away = Vector3.new(p.Position.X, 0, p.Position.Z) - MAP_CENTRE
+	if math.abs(axis.X) > 0.5 then
+		away = Vector3.new(away.X, 0, 0)
+	else
+		away = Vector3.new(0, 0, away.Z)
+	end
+	local oldThick = thickAxisIsX and p.Size.X or p.Size.Z
+	local shift = away.Unit * (WALL_THICK - oldThick) / 2
+	local size = thickAxisIsX and Vector3.new(WALL_THICK, height, p.Size.Z) or Vector3.new(p.Size.X, height, WALL_THICK)
+	local y = top and (top + height / 2) or (bottom + height / 2)
+	p.Size = size
+	p.CFrame = CFrame.new(p.Position.X + shift.X, y, p.Position.Z + shift.Z) * p.CFrame.Rotation
+end
+local WALL_BOTTOM = -1 -- all walls start just below the floors
+local wallTop = WALL_BOTTOM + WALL_HEIGHT
+for _, w in ipairs(walls) do
+	resize(w, WALL_HEIGHT, WALL_BOTTOM)
+end
+for _, c in ipairs(caps) do
+	resize(c, c.Size.Y, nil, wallTop)
+end
+table.insert(out, string.format("walls raised to %d (thickness %d): %d walls, %d caps", WALL_HEIGHT, WALL_THICK, #walls, #caps))
+
 if rec then
 	CHS:FinishRecording(rec, Enum.FinishRecordingOperation.Commit)
 end
