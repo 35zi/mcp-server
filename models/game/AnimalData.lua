@@ -45,6 +45,23 @@ AnimalData.Species = {
 	Camel = { world = 2, rarity = "Legendary", hp = 45, value = 500, income = 66, hopHeight = 0.45, hopDist = 3.6, hopTime = 0.5, walk = true },
 }
 
+-- spawns ABOVE this rarity are announced to everyone with a big message when the wave brings them
+-- (add rarer tiers after "Legendary" in RarityOrder + Rarities and they are announced automatically)
+AnimalData.AnnounceAbove = "Legendary"
+
+function AnimalData.RarityRank(rarity)
+	for i, r in ipairs(AnimalData.RarityOrder) do
+		if r == rarity then
+			return i
+		end
+	end
+	return 0
+end
+
+function AnimalData.ShouldAnnounce(rarity)
+	return AnimalData.RarityRank(rarity) > AnimalData.RarityRank(AnimalData.AnnounceAbove)
+end
+
 function AnimalData.WorldOf(species)
 	local s = AnimalData.Species[species]
 	return s and s.world

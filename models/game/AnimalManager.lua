@@ -31,7 +31,8 @@ local AnimalManager = {}
 
 ---------------------------------------------------------------- tuning
 local WAVE_INTERVAL = 300 -- seconds (5 minutes)
-local DEFAULT_POPULATION = 5 -- most animals alive per zone (= per world); waves top it back up (zone attribute Population overrides)
+local DEFAULT_POPULATION = 5 -- most animals alive per zone (= per world) (zone attribute Population overrides)
+local DEFAULT_MIN_POPULATION = 2 -- each wave picks a random target between this (zone attribute MinPopulation) and the max
 local MAX_AGE_WAVES = 2 -- an animal is replaced after surviving this many waves
 local MIN_SPACING = 7 -- studs between spawned animals
 local ZONE_MARGIN = 3 -- keep animals this far inside a zone's edges
@@ -475,7 +476,7 @@ local function spawnOne(zone)
 	makeTag(record)
 	records[model] = record
 	model.Parent = animalsFolder
-	if mutation ~= "None" or cfg.rarity == "Legendary" then
+	if mutation ~= "None" or AnimalData.ShouldAnnounce(cfg.rarity) then
 		animalEvent:FireAllClients("Mutation", { species = species, mutation = mutation, rarity = cfg.rarity, size = size.name, world = worldId })
 	end
 	return record
@@ -505,7 +506,12 @@ local function wave()
 					alive += 1
 				end
 			end
-			for _ = alive + 1, zone:GetAttribute("Population") or DEFAULT_POPULATION do
+			-- this wave's random size for this world (2..5 by default), never above the max
+			local max = zone:GetAttribute("Population") or DEFAULT_POPULATION
+			local min = math.min(zone:GetAttribute("MinPopulation") or DEFAULT_MIN_POPULATION, max)
+			local target = rng:NextInteger(min, max)
+			zone:SetAttribute("WaveTarget", target)
+			for _ = alive + 1, target do
 				spawnOne(zone)
 			end
 		end

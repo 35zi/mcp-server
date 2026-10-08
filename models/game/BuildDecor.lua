@@ -193,31 +193,31 @@ local function scatter(zNear, zFar, count, gap, build)
 end
 
 -- World 1: forest
-scatter(-98, -338, 9, 16, function(x, z)
-	roundTree(x, z, rng:NextNumber(0.9, 1.3))
+scatter(-98, -338, 9, 28, function(x, z)
+	roundTree(x, z, rng:NextNumber(1.5, 2.0))
 end)
-scatter(-98, -338, 9, 16, function(x, z)
-	pineTree(x, z, rng:NextNumber(0.9, 1.4))
+scatter(-98, -338, 9, 28, function(x, z)
+	pineTree(x, z, rng:NextNumber(1.7, 2.2))
 end)
-scatter(-94, -338, 12, 10, function(x, z)
-	bush(x, z, rng:NextNumber(0.85, 1.2))
+scatter(-94, -338, 12, 14, function(x, z)
+	bush(x, z, rng:NextNumber(1.5, 2.0))
 end)
 scatter(-94, -338, 16, 8, function(x, z)
 	flowers(x, z)
 end)
-scatter(-94, -338, 7, 10, function(x, z)
-	rock(forest, x, z, rng:NextNumber(0.8, 1.4), GREY_ROCK)
+scatter(-94, -338, 7, 16, function(x, z)
+	rock(forest, x, z, rng:NextNumber(1.4, 2.2), GREY_ROCK)
 end)
 scatter(-94, -338, 3, 12, function(x, z)
 	log(x, z)
 end)
 
 -- World 2: desert
-scatter(-356, -676, 16, 16, function(x, z)
-	cactus(x, z, rng:NextNumber(0.85, 1.35))
+scatter(-356, -676, 16, 26, function(x, z)
+	cactus(x, z, rng:NextNumber(2.6, 3.4))
 end)
-scatter(-356, -676, 12, 12, function(x, z)
-	rock(desert, x, z, rng:NextNumber(0.9, 1.6), SANDSTONE)
+scatter(-356, -676, 12, 16, function(x, z)
+	rock(desert, x, z, rng:NextNumber(1.5, 2.4), SANDSTONE)
 end)
 scatter(-356, -676, 10, 10, function(x, z)
 	dryBush(x, z)
@@ -226,6 +226,20 @@ scatter(-356, -676, 3, 20, function(x, z)
 	skull(x, z)
 end)
 
+
+-- the small pieces without a scale argument grow too (animals are 7-14 studs tall, so decor must not look tiny):
+-- scale each about its middle, then put it back on the floor
+local GROW = { Flowers = 2, Log = 2, DryBush = 2.2, Skull = 2.2 }
+for _, folder in ipairs({ forest, desert }) do
+	for _, m in ipairs(folder:GetChildren()) do
+		local k = GROW[m.Name]
+		if k then
+			m:ScaleTo(k)
+			local cf, size = m:GetBoundingBox()
+			m:PivotTo(m:GetPivot() + Vector3.new(0, FLOOR_Y - (cf.Y - size.Y / 2), 0))
+		end
+	end
+end
 if rec then
 	CHS:FinishRecording(rec, Enum.FinishRecordingOperation.Commit)
 end

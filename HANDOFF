@@ -224,3 +224,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Files: models/game/BuildWorldLayout.lua (WALL_HEIGHT / WALL_THICK section). Studio: those wall + cap Parts.
 - Branch: claude/bunny-model
 - Status: done — checked on screen. Place not saved by me — save in Studio.
+
+## Claude — 2026-10-09 01:10 UTC
+- Task: owner's request — each wave spawns a random 2..5 animals per world (zone attrs MinPopulation / Population, default 2 / 5); a rarity ABOVE Legendary (AnimalData.AnnounceAbove) shows an on-screen banner to everyone when a wave brings it (no new rarities added — add them after "Legendary" in AnimalData.RarityOrder/Rarities and they are announced automatically). Also decorations rescaled: trees ~17 tall, cacti ~17-22, bigger bushes/rocks, so they are a bit taller than the animals.
+- Files: models/game/AnimalData.lua, AnimalManager.lua, AnimalClient.client.lua, BuildDecor.lua. Studio: patched + Workspace.Decor rebuilt.
+- Branch: claude/bunny-model
+- Status: done — playtested: wave targets vary 2..5 per world, console clean. Place not saved by me — save in Studio.

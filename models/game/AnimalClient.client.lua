@@ -388,16 +388,22 @@ animalEvent.OnClientEvent:Connect(function(kind, data)
 	elseif kind == "Notice" then
 		banner(data.text, WHITE, 2.5)
 	elseif kind == "Mutation" then
+		-- a mutation, or a rarity above AnimalData.AnnounceAbove (Legendary), arrived with the wave
 		local parts = {}
-		if data.rarity == "Legendary" then
-			table.insert(parts, "LEGENDARY")
+		local special = AnimalData.ShouldAnnounce(data.rarity)
+		if special then
+			table.insert(parts, string.upper(data.rarity))
 		end
 		if data.mutation and data.mutation ~= "None" then
 			table.insert(parts, string.upper(data.mutation))
 		end
 		table.insert(parts, string.upper(data.species))
-		local color = data.mutation == "Gold" and GOLD or data.mutation == "Silver" and SILVER or AnimalData.Rarities.Legendary.color
-		banner(string.format("A %s appeared in World %d!", table.concat(parts, " "), data.world or 1), color, 4)
+		local rarity = AnimalData.Rarities[data.rarity]
+		local color = special and rarity and rarity.color or data.mutation == "Gold" and GOLD or data.mutation == "Silver" and SILVER or WHITE
+		banner(string.format("%sA %s appeared in World %d!", special and "🌟 " or "", table.concat(parts, " "), data.world or 1), color, special and 6 or 4)
+		if special then
+			playSound("Catch", nil, 0.8, 1.2)
+		end
 	end
 end)
 
