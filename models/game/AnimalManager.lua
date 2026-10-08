@@ -25,6 +25,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
 local AnimalData = require(ReplicatedStorage:WaitForChild("AnimalData"))
+local AnimalRig = require(ReplicatedStorage:WaitForChild("AnimalRig"))
 local AnimalCarry = require(script.Parent:WaitForChild("AnimalCarry"))
 
 local AnimalManager = {}
@@ -360,6 +361,8 @@ function AnimalManager.BuildModel(species, sizeName, mutation)
 	end
 	applyMutationLook(model, mutation or "None")
 	model.Name = species
+	AnimalRig.Build(model, species)
+	AnimalRig.SetAnchored(model, true)
 	return model
 end
 
@@ -448,6 +451,8 @@ local function spawnOne(zone)
 	model:SetAttribute("Value", value)
 	model:SetAttribute("Hop", 0)
 	model:SetAttribute("Land", 0)
+	model:SetAttribute("AnimState", "idle")
+	model:SetAttribute("AnimStartedAt", workspace:GetServerTimeNow())
 
 	local record = {
 		model = model,
@@ -458,6 +463,7 @@ local function spawnOne(zone)
 		zone = zone,
 		worldId = worldId,
 		parts = parts,
+		rootIndex = AnimalRig.RootIndex(model, parts),
 		offsets = offsets,
 		height = boxSize.Y,
 		width = boxSize.X,
@@ -592,13 +598,14 @@ local function beginHop(record)
 		record.hopTo = Vector3.new(record.hopTo.X, y, record.hopTo.Z)
 	end
 	record.hops += 1
-	if not record.cfg.walk then
+	if not AnimalRig.IsWalker(record.species) then
 		record.model:SetAttribute("Hop", record.hops)
 	end
 end
 
 local function step(record, dt)
 	local cfg = record.cfg
+	local walk = AnimalRig.IsWalker(record.species)
 	local scale = record.size.scale
 	local hopTime = cfg.hopTime * (record.fleeing and 0.75 or 1)
 	record.clock += dt
@@ -620,8 +627,8 @@ local function step(record, dt)
 	elseif record.state == "hop" then
 		local p = math.min(record.stateT / hopTime, 1)
 		record.pos = record.hopFrom:Lerp(record.hopTo, p)
-		yOff = cfg.hopHeight * scale * 4 * p * (1 - p)
-		pitch = cfg.walk and 0 or 0.3 * math.cos(math.pi * p)
+		yOff = (walk and math.min(cfg.hopHeight, 0.06) or cfg.hopHeight) * scale * 4 * p * (1 - p)
+		pitch = walk and 0 or 0.3 * math.cos(math.pi * p)
 		if p >= 1 then
 			record.pos = record.hopTo
 			record.hopsLeft -= 1
@@ -631,9 +638,9 @@ local function step(record, dt)
 			end
 		end
 	elseif record.state == "land" then
-		local landTime = cfg.walk and 0.04 or 0.16
+		local landTime = walk and 0.04 or 0.16
 		local q = math.min(record.stateT / landTime, 1)
-		yOff = cfg.walk and 0 or -0.12 * scale * math.sin(math.pi * q)
+		yOff = walk and 0 or -0.12 * scale * math.sin(math.pi * q)
 		if q >= 1 then
 			if record.hopsLeft > 0 then
 				beginHop(record)
@@ -644,18 +651,25 @@ local function step(record, dt)
 			end
 		end
 	end
+	if record.animState ~= record.state then
+		record.animState = record.state
+		record.model:SetAttribute("AnimState", record.state)
+		record.model:SetAttribute("AnimStartedAt", workspace:GetServerTimeNow() - record.stateT)
+		record.model:SetAttribute("AnimDuration", hopTime)
+	end
 	return CFrame.new(record.pos + Vector3.new(0, yOff, 0)) * CFrame.Angles(0, record.yaw, 0) * CFrame.Angles(pitch, 0, 0)
 end
 
+local allParts, allCFrames = {}, {}
 local function onHeartbeat(dt)
-	local allParts, allCFrames = {}, {}
+	table.clear(allParts)
+	table.clear(allCFrames)
 	for _, record in pairs(records) do
 		if record.model.Parent then
 			local root = step(record, dt)
-			for i, part in ipairs(record.parts) do
-				table.insert(allParts, part)
-				table.insert(allCFrames, root * record.offsets[i])
-			end
+			local i = record.rootIndex
+			table.insert(allParts, record.model.PrimaryPart)
+			table.insert(allCFrames, root * record.offsets[i])
 		end
 	end
 	if #allParts > 0 then
@@ -775,6 +789,8 @@ function AnimalManager.Revive(model, info, position)
 		p.CanQuery = true
 		p.Massless = false
 	end
+	AnimalRig.SetAnchored(model, true)
+	model:SetAttribute("AnimationContext", nil)
 	local maxHealth = info.maxHealth or cfg.hp
 	model:SetAttribute("Health", maxHealth)
 	local record = {
@@ -786,6 +802,7 @@ function AnimalManager.Revive(model, info, position)
 		zone = zone,
 		worldId = info.world,
 		parts = info.parts,
+		rootIndex = AnimalRig.RootIndex(model, info.parts),
 		offsets = info.offsets,
 		height = info.height,
 		width = info.width,
@@ -822,3 +839,4 @@ end
 AnimalCarry.OnRevive(AnimalManager.Revive)
 
 return AnimalManager
+

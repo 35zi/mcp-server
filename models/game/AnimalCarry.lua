@@ -17,6 +17,7 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AnimalData = require(ReplicatedStorage:WaitForChild("AnimalData"))
+local AnimalRig = require(ReplicatedStorage:WaitForChild("AnimalRig"))
 local InventoryAdapter = require(script.Parent:WaitForChild("InventoryAdapter"))
 
 local AnimalCarry = {}
@@ -106,11 +107,10 @@ local function notify(player, text)
 end
 
 local function moveParts(info, rootCF)
-	local cfs = table.create(#info.parts)
-	for i in ipairs(info.parts) do
-		cfs[i] = rootCF * info.offsets[i]
-	end
-	workspace:BulkMoveTo(info.parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
+	local model = info.parts[1].Parent
+	while model and not model:FindFirstChild("AnimalJoints") do model = model.Parent end
+	assert(model, "Missing rig for stunned animal")
+	AnimalRig.Move(model, info.parts, info.offsets, rootCF)
 end
 
 -- lying on its side at pos (t = 0 standing .. 1 fully toppled), rolled about its own front-back axis
@@ -170,6 +170,9 @@ local function layDown(body, position, animate)
 		p.CanQuery = false
 		p.CanTouch = false
 	end
+	AnimalRig.SetAnchored(body.model, true)
+	AnimalRig.Reset(body.model)
+	body.model:SetAttribute("AnimationContext", "Stunned")
 	body.model.Parent = bodiesFolder
 	local pos = Vector3.new(position.X, groundBelow(position), position.Z)
 	body.pos = pos
@@ -317,19 +320,14 @@ pickUp = function(player, body)
 
 	local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso") or root
 	local base = torso.CFrame * carryPose(info, torso)
-	for i, p in ipairs(info.parts) do
-		p.CFrame = base * info.offsets[i]
-	end
+	moveParts(info, base)
 	body.model.Parent = character
-	for _, p in ipairs(info.parts) do
-		p.Massless = true
-		local weld = Instance.new("WeldConstraint")
-		weld.Name = "CarryWeld"
-		weld.Part0 = torso
-		weld.Part1 = p
-		weld.Parent = p
-		p.Anchored = false
-	end
+	local weld = Instance.new("WeldConstraint")
+	weld.Name = "CarryWeld"
+	weld.Part0 = torso
+	weld.Part1 = body.model.PrimaryPart
+	weld.Parent = body.model.PrimaryPart
+	AnimalRig.SetAnchored(body.model, false)
 	player:SetAttribute("Carrying", displayName(info)) -- also tells every client to pose the holding arm
 end
 
@@ -482,3 +480,4 @@ function AnimalCarry.Start()
 end
 
 return AnimalCarry
+

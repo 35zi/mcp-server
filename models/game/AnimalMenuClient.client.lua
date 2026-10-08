@@ -1,508 +1,341 @@
--- AnimalMenuClient (LocalScript in StarterPlayer.StarterPlayerScripts)
---
--- Two tiles on the left side of the screen (style: ReplicatedStorage.UIStyle):
---   * Index  every animal per world with its rarity; the ones you've brought home are unlocked (picture + how many),
---            the rest are black silhouettes ("???"). Reads player attributes Caught_<Species> (set by AnimalCarry).
---   * Bag    your animals (player.AnimalInventory, InventoryAdapter): Hold it in your hand, Place it on your plot,
---            take it back. Asks the server through ReplicatedStorage.AnimalInventoryRemote (InventoryService).
--- A red "!" badge shows on a tile when something new is in it. Plus a banner while you carry a stunned animal
--- ("bring it over the red line", with a Drop button / G key). While a menu is open the ScreenGui attribute Open is
--- true, so WeaponClient puts the
--- gun aside and shows the cursor.
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local ContentProvider = game:GetService("ContentProvider")
-local ContextActionService = game:GetService("ContextActionService")
-
-local player = Players.LocalPlayer
-local AnimalData = require(ReplicatedStorage:WaitForChild("AnimalData"))
-local UIStyle = require(ReplicatedStorage:WaitForChild("UIStyle"))
-local remote = ReplicatedStorage:WaitForChild("AnimalInventoryRemote")
-local previews = ReplicatedStorage:WaitForChild("AnimalPreviews")
-
-local make, text, C = UIStyle.make, UIStyle.text, UIStyle.Colors
-local WORLD_ICONS = { "🌲", "🌵" }
-
-local gui = make("ScreenGui", { Name = "AnimalMenu", ResetOnSpawn = false, DisplayOrder = 6, Parent = player:WaitForChild("PlayerGui") })
-gui:SetAttribute("Open", false)
-local MUTATION_COLORS = { Gold = Color3.fromRGB(255, 205, 50), Silver = Color3.fromRGB(215, 225, 240) }
-
----------------------------------------------------------------- side tiles
-local side = make("Frame", {
-	AnchorPoint = Vector2.new(0, 0.5),
-	Position = UDim2.new(0, 18, 0.5, 0),
-	Size = UDim2.fromOffset(70, 160),
-	BackgroundTransparency = 1,
-	Parent = gui,
-})
-make("UIListLayout", { Padding = UDim.new(0, 14), SortOrder = Enum.SortOrder.LayoutOrder, Parent = side })
-local indexTile, indexBadge = UIStyle.tile({ Icon = "📖", Label = "Index", LayoutOrder = 1, Parent = side })
-local bagTile, bagBadge = UIStyle.tile({ Icon = "🎒", Label = "Bag", LayoutOrder = 2, Parent = side })
-
----------------------------------------------------------------- windows
-local function fitScale()
-	local camera = workspace.CurrentCamera
-	local vp = camera and camera.ViewportSize or Vector2.new(1280, 720)
-	return math.min(1, (vp.X - 140) / 680, (vp.Y - 40) / 500)
+-- AnimalMenuClient: uses the supplied StarterGui.GameUI instead of constructing the old menus.
+local Players=game:GetService("Players")
+local ReplicatedStorage=game:GetService("ReplicatedStorage")
+local ContentProvider=game:GetService("ContentProvider")
+local ContextActionService=game:GetService("ContextActionService")
+local UserInputService=game:GetService("UserInputService")
+local player=Players.LocalPlayer
+local gui=player:WaitForChild("PlayerGui"):WaitForChild("GameUI")
+local motion=require(ReplicatedStorage:WaitForChild("UIMotion"))
+motion.BindButtons(gui)
+local frames=gui:WaitForChild("Frames")
+local index,pets=frames:WaitForChild("Index"),frames:WaitForChild("Pets")
+local data=require(ReplicatedStorage:WaitForChild("AnimalData"))
+local previews=ReplicatedStorage:WaitForChild("AnimalPreviews")
+local remote=ReplicatedStorage:WaitForChild("AnimalInventoryRemote")
+local teleport=ReplicatedStorage:WaitForChild("GameUITeleport")
+local dark=Color3.fromRGB(8,20,28)
+local green=Color3.fromRGB(77,238,41)
+local blue=Color3.fromRGB(10,148,222)
+local red=Color3.fromRGB(245,55,55)
+local worldIndex=1
+local page=nil
+local petFilter="Equipped"
+local busy=false
+local inventory=nil
+local connections={}
+local lastMouse=nil
+local refresh
+local function make(class,props,parent)
+ local x=Instance.new(class) for k,v in props do x[k]=v end x.Parent=parent return x
 end
-
-local indexWindow, indexBody, indexClose = UIStyle.window({ Name = "Index", Title = "Index", Icon = "📖", Size = UDim2.fromOffset(660, 480), Visible = false, Parent = gui })
-local bagWindow, bagBody, bagClose = UIStyle.window({ Name = "Bag", Title = "Bag", Icon = "🎒", Size = UDim2.fromOffset(660, 480), Visible = false, Parent = gui })
-for _, w in ipairs({ indexWindow, bagWindow }) do
-	make("UIScale", { Name = "PopScale", Scale = fitScale(), Parent = w })
+local function stroke(x,width)
+ return make("UIStroke",{Thickness=width or 2,Color=dark},x)
 end
-workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-	for _, w in ipairs({ indexWindow, bagWindow }) do
-		w.PopScale.Scale = fitScale()
-	end
-end)
-
-local function statusLine(body)
-	return text({
-		Name = "Status",
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, 0),
-		Size = UDim2.new(1, 0, 0, 24),
-		Text = "",
-		TextSize = 18,
-		Parent = body,
-	})
+local function label(name,parent,value,pos,size,max,color)
+ local x=make("TextLabel",{Name=name,Text=value,Position=pos,Size=size,BackgroundTransparency=1,Font=Enum.Font.GothamBlack,TextScaled=true,TextWrapped=true,TextColor3=color or Color3.new(1,1,1),ZIndex=16},parent)
+ stroke(x,1.4) make("UITextSizeConstraint",{MinTextSize=9,MaxTextSize=max or 20},x)
+ return x
 end
-local indexStatus = statusLine(indexBody)
-local bagStatus = statusLine(bagBody)
-
----------------------------------------------------------------- INDEX
-local currentWorld = 1
-local tabs = {}
--- world tabs: their own horizontally scrolling strip, so any number of worlds fits
-local tabRow = make("ScrollingFrame", {
-	Size = UDim2.new(1, -190, 0, 54),
-	BackgroundTransparency = 1,
-	BorderSizePixel = 0,
-	ScrollBarThickness = 4,
-	ScrollBarImageColor3 = UIStyle.Outline,
-	ScrollingDirection = Enum.ScrollingDirection.X,
-	AutomaticCanvasSize = Enum.AutomaticSize.X,
-	CanvasSize = UDim2.new(),
-	Parent = indexBody,
-})
-make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = tabRow })
-make("UIPadding", { PaddingTop = UDim.new(0, 2), PaddingLeft = UDim.new(0, 2), Parent = tabRow })
-local unlockedLabel = text({
-	AnchorPoint = Vector2.new(1, 0),
-	Position = UDim2.new(1, 0, 0, 6),
-	Size = UDim2.fromOffset(180, 34),
-	Text = "",
-	TextSize = 22,
-	TextXAlignment = Enum.TextXAlignment.Right,
-	Parent = indexBody,
-})
--- progress of the open world: "Forest · 3/4 found" over a filling bar
-local progressTrack = make("Frame", {
-	Position = UDim2.fromOffset(0, 58),
-	Size = UDim2.new(1, 0, 0, 22),
-	BackgroundColor3 = Color3.fromRGB(70, 44, 24),
-	Parent = indexBody,
-})
-UIStyle.corner(progressTrack, 11)
-UIStyle.stroke(progressTrack, 2)
-local progressFill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = C.Green, Parent = progressTrack })
-UIStyle.corner(progressFill, 11)
-local progressText = text({ Size = UDim2.fromScale(1, 1), Text = "", TextSize = 16, ZIndex = 3, Parent = progressTrack })
--- the animal cards: scrolls up/down (mouse wheel, drag, scroll bar) when there are more than fit
-local grid = make("ScrollingFrame", {
-	Position = UDim2.fromOffset(0, 90),
-	Size = UDim2.new(1, 0, 1, -120),
-	BackgroundTransparency = 1,
-	BorderSizePixel = 0,
-	ScrollBarThickness = 8,
-	ScrollBarImageColor3 = UIStyle.Outline,
-	ScrollingDirection = Enum.ScrollingDirection.Y,
-	AutomaticCanvasSize = Enum.AutomaticSize.Y,
-	CanvasSize = UDim2.new(),
-	Parent = indexBody,
-})
-make("UIGridLayout", {
-	CellSize = UDim2.fromOffset(142, 262),
-	CellPadding = UDim2.fromOffset(12, 12),
-	SortOrder = Enum.SortOrder.LayoutOrder,
-	HorizontalAlignment = Enum.HorizontalAlignment.Center,
-	Parent = grid,
-})
-make("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 8), PaddingRight = UDim.new(0, 10), Parent = grid })
-
-local function caughtCount(species)
-	return player:GetAttribute("Caught_" .. species) or 0
+local function button(name,parent,value,pos,size,color)
+ local x=make("TextButton",{Name=name,Text=value,Position=pos,Size=size,BackgroundColor3=color or blue,BorderSizePixel=0,Font=Enum.Font.GothamBlack,TextColor3=Color3.new(1,1,1),TextScaled=true,AutoButtonColor=true,ZIndex=17},parent)
+ make("UIStroke",{Thickness=2,Color=dark,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},x)
+ stroke(x,1.2) make("UITextSizeConstraint",{MinTextSize=9,MaxTextSize=16},x)
+ return x
 end
-
--- species of a world, rarest last (Common ... Legendary), so a new tier lands at the end by itself
-local function sortedSpecies(world)
-	local list = table.clone(world.species)
-	table.sort(list, function(a, b)
-		local ra, rb = AnimalData.RarityRank(AnimalData.Species[a].rarity), AnimalData.RarityRank(AnimalData.Species[b].rarity)
-		if ra ~= rb then
-			return ra < rb
-		end
-		return a < b
-	end)
-	return list
+local function clearCards(scroller)
+ for _,child in scroller:GetChildren() do if child:IsA("GuiObject") then child:Destroy() end end
 end
-
-local function foundIn(world)
-	local found = 0
-	for _, species in ipairs(world.species) do
-		if caughtCount(species) > 0 then
-			found += 1
-		end
-	end
-	return found
+-- Measure the final layout, excluding the temporary frame animation scale.
+local function layoutSize(node)
+ local frame=node:IsDescendantOf(index) and index or pets
+ local scale=frame:FindFirstChild("FrameMotionScale")
+ return node.AbsoluteSize/(scale and scale.Scale or 1)
 end
-
+local function gridSize(scroller,height)
+ local width=layoutSize(scroller).X
+ local columns=math.clamp(math.floor(width/125),2,5)
+ local layout=scroller:FindFirstChildOfClass("UIGridLayout")
+ layout.CellSize=UDim2.fromOffset(math.max(70,math.floor((width-16-(columns-1)*8)/columns)),height)
+end
+local corners={}
+for _,x in {-.5,.5} do for _,y in {-.5,.5} do for _,z in {-.5,.5} do table.insert(corners,Vector3.new(x,y,z)) end end end
+local function picture(parent,species,locked,mutation)
+ local viewport=make("ViewportFrame",{Name="Preview",Position=UDim2.fromScale(.05,.05),Size=UDim2.fromScale(.90,.55),BackgroundTransparency=1,Ambient=Color3.fromRGB(210,215,230),LightColor=Color3.new(1,1,1),LightDirection=Vector3.new(-1,-2,-1),ZIndex=15},parent)
+ local source=previews:FindFirstChild(species)
+ if not source then label("MissingPreview",viewport,"?",UDim2.new(),UDim2.fromScale(1,1),48) return end
+ local model=source:Clone()
+ local low,high=Vector3.one*math.huge,-Vector3.one*math.huge
+ for _,part in model:GetDescendants() do
+  if part:IsA("BasePart") then
+   part.Anchored=true
+   if not locked and (mutation=="Gold" or mutation=="Silver") then
+    local brightness=(part.Color.R+part.Color.G+part.Color.B)/3
+    if brightness>.12 and brightness<.97 then
+     part.Color=part.Color:Lerp(mutation=="Gold" and Color3.fromRGB(255,196,30) or Color3.fromRGB(205,215,230),mutation=="Gold" and .85 or .8)
+     part.Material=Enum.Material.SmoothPlastic part.Reflectance=mutation=="Gold" and .25 or .3
+    end
+   end
+   for _,c in corners do local p=part.CFrame*(c*part.Size) low=low:Min(p) high=high:Max(p) end
+   if locked then part.Color=Color3.fromRGB(9,18,27) part.Material=Enum.Material.SmoothPlastic if part:IsA("MeshPart") then part.TextureID="" end end
+  elseif locked and (part:IsA("SurfaceAppearance") or part:IsA("Decal") or part:IsA("Texture")) then part:Destroy()
+  elseif locked and part:IsA("SpecialMesh") then part.TextureId="" end
+ end
+ model.Parent=viewport
+ local centre=(low+high)/2
+ local extent=high-low
+ local primary=model.PrimaryPart
+ local front=primary and Vector3.new(primary.CFrame.LookVector.X,0,primary.CFrame.LookVector.Z) or Vector3.new(0,0,-1)
+ if front.Magnitude<.01 then front=Vector3.new(0,0,-1) end front=front.Unit
+ local right=Vector3.new(-front.Z,0,front.X)
+ local direction=(front*.9-right*.55+Vector3.new(0,.35,0)).Unit
+ local camera=make("Camera",{FieldOfView=32},viewport)
+ local distance=math.max(extent.X,extent.Y,extent.Z)*.72/math.tan(math.rad(16))
+ camera.CFrame=CFrame.lookAt(centre+direction*distance,centre)
+ viewport.CurrentCamera=camera
+end
+local function rarityColor(name)
+ local rarity=data.Rarities[name] return rarity and rarity.color or Color3.fromRGB(225,225,225)
+end
+local function card(parent,name,order,rarity)
+ local c=make("Frame",{Name=name,LayoutOrder=order,BackgroundColor3=rarityColor(rarity):Lerp(Color3.new(1,1,1),.2),BorderSizePixel=0,ZIndex=14},parent)
+ make("UIStroke",{Thickness=2,Color=dark,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},c)
+ make("UIGradient",{Color=ColorSequence.new(Color3.new(1,1,1),Color3.fromRGB(175,210,230)),Rotation=90},c)
+ return c
+end
+local function caught(species) return player:GetAttribute("Caught_"..species) or 0 end
+local function found(world)
+ local n=0 for _,species in world.species do if caught(species)>0 then n+=1 end end return n
+end
 local function renderIndex()
-	local unlocked, total = 0, 0
-	for _, world in ipairs(AnimalData.Worlds) do
-		unlocked += foundIn(world)
-		total += #world.species
-	end
-	unlockedLabel.Text = string.format("Unlocked %d/%d", unlocked, total)
-	local current = AnimalData.Worlds[currentWorld]
-	local found = foundIn(current)
-	progressFill.Size = UDim2.fromScale(#current.species > 0 and found / #current.species or 0, 1)
-	progressFill.Visible = found > 0
-	progressText.Text = string.format("%s · %d/%d found", current.name, found, #current.species)
-	for id, b in pairs(tabs) do
-		UIStyle.setButton(b, string.format("%s %s  %d/%d", WORLD_ICONS[id] or "", AnimalData.Worlds[id].name, foundIn(AnimalData.Worlds[id]), #AnimalData.Worlds[id].species), id == currentWorld and C.Green or C.Grey)
-	end
-	for _, c in ipairs(grid:GetChildren()) do
-		if c:IsA("GuiObject") then
-			c:Destroy()
-		end
-	end
-	grid.CanvasPosition = Vector2.zero
-	for i, species in ipairs(sortedSpecies(current)) do
-		local info = AnimalData.Species[species]
-		local rarity = AnimalData.Rarities[info.rarity]
-		local count = caughtCount(species)
-		local known = count > 0
-		local card = make("Frame", { LayoutOrder = i, BackgroundColor3 = Color3.new(1, 1, 1), Parent = grid })
-		UIStyle.corner(card, 14)
-		UIStyle.stroke(card, 3, known and info.rarity == "Legendary" and rarity.color or nil)
-		UIStyle.gradient(card, UIStyle.rarityGradient(info.rarity), info.rarity == "Legendary" and 45 or 90)
-		local vp = UIStyle.picture({ Position = UDim2.fromOffset(8, 8), Size = UDim2.new(1, -16, 0, 120), Parent = card })
-		UIStyle.showModel(vp, previews:FindFirstChild(species))
-		if not known then
-			vp.ImageColor3 = Color3.new(0, 0, 0)
-			vp.ImageTransparency = 0.1
-		end
-		text({ Position = UDim2.fromOffset(4, 131), Size = UDim2.new(1, -8, 0, 32), Text = known and species or "???", TextSize = 26, Parent = card })
-		UIStyle.pill({
-			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.new(0.5, 0, 0, 167),
-			Size = UDim2.fromOffset(118, 26),
-			Text = string.upper(info.rarity),
-			TextSize = 16,
-			Color = UIStyle.darker(rarity.color, 0.15),
-			Parent = card,
-		})
-		text({
-			Position = UDim2.fromOffset(4, 199),
-			Size = UDim2.new(1, -8, 0, 56),
-			Text = known and string.format("Caught: %d\n💰 $%s/s", count, AnimalData.Commas(AnimalData.Income(species, "Medium", "None"))) or "Not caught yet",
-			TextWrapped = true,
-			TextSize = 19,
-			TextColor3 = known and C.White or Color3.fromRGB(225, 225, 230),
-			Parent = card,
-		})
-	end
+ local body=index.Content
+ local tabWidth=math.min(145,math.max(90,math.floor((layoutSize(body.WorldTabs).X-4)/math.min(2,#data.Worlds))))
+ for _,tab in body.WorldTabs:GetChildren() do if tab:IsA("TextButton") then tab.Size=UDim2.fromOffset(tabWidth,32) end end
+ local total,unlocked=0,0
+ for _,world in data.Worlds do total+=#world.species unlocked+=found(world) end
+ body.Total.Text=string.format("%d / %d FOUND",unlocked,total)
+ local world=data.Worlds[worldIndex]
+ if not world then return end
+ local count=found(world)
+ body.Progress.Fill.Size=UDim2.fromScale(count/math.max(1,#world.species),1)
+ body.Progress.Label.Text=string.upper(world.name)..string.format("  %d / %d",count,#world.species)
+ for _,tab in body.WorldTabs:GetChildren() do if tab:IsA("TextButton") then
+  local number=tab:GetAttribute("WorldIndex")
+  tab.BackgroundColor3=number==worldIndex and green or blue
+  local w=data.Worlds[number]
+  tab.Text=string.upper(w.name)..string.format(" %d/%d",found(w),#w.species)
+ end end
+ local scroller=body.Cards
+ local oldScroll=scroller.CanvasPosition
+ clearCards(scroller)
+ gridSize(scroller,math.clamp(layoutSize(scroller).X*.31,142,184))
+ local species=table.clone(world.species)
+ table.sort(species,function(a,b)
+  local ra,rb=data.RarityRank(data.Species[a].rarity),data.RarityRank(data.Species[b].rarity)
+  return ra==rb and a<b or ra<rb
+ end)
+ for i,name in species do
+  local info=data.Species[name]
+  local known=caught(name)>0
+  local c=card(scroller,"Animal_"..name,i,info.rarity)
+  c:SetAttribute("Unlocked",known)
+  picture(c,name,not known)
+  label("Name",c,known and string.upper(name) or "???",UDim2.fromScale(.03,.59),UDim2.fromScale(.94,.13),20)
+  label("Rarity",c,string.upper(info.rarity),UDim2.fromScale(.03,.73),UDim2.fromScale(.94,.10),12,rarityColor(info.rarity))
+  label("Caught",c,known and ("CAUGHT: "..caught(name)) or "NOT FOUND",UDim2.fromScale(.03,.86),UDim2.fromScale(.94,.10),12)
+ end
+ scroller.CanvasPosition=oldScroll
 end
-
-for _, world in ipairs(AnimalData.Worlds) do
-	local b = UIStyle.button({
-		Size = UDim2.fromOffset(200, 46),
-		LayoutOrder = world.id,
-		Text = world.name,
-		TextSize = 19,
-		Color = C.Grey,
-		Parent = tabRow,
-	})
-	b.Activated:Connect(function()
-		currentWorld = world.id
-		renderIndex()
-	end)
-	tabs[world.id] = b
+local notice
+local function ask(action,id)
+ if busy then return end
+ busy=true
+ pets.Content.EquipBest.Text="WORKING..."
+ pets.Content.EquipBest.Active=false
+ local ok,success,message=pcall(function() return remote:InvokeServer(action,id) end)
+ pets.Content.Status.Text=ok and tostring(message or "") or "Please try again."
+ pets.Content.Status.TextColor3=ok and success and green or Color3.new(1,1,1)
+ busy=false pets.Content.EquipBest.Active=true pets.Content.EquipBest.Text="EQUIP BEST"
+ if not pets.Content.Status.Visible and notice then notice(pets.Content.Status.Text) end
+ if refresh then refresh() end
 end
-
----------------------------------------------------------------- BAG
-local list = make("ScrollingFrame", {
-	Size = UDim2.new(1, 0, 1, -30),
-	BackgroundTransparency = 1,
-	BorderSizePixel = 0,
-	ScrollBarThickness = 8,
-	ScrollBarImageColor3 = UIStyle.Outline,
-	AutomaticCanvasSize = Enum.AutomaticSize.Y,
-	CanvasSize = UDim2.new(),
-	Parent = bagBody,
-})
-make("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, Parent = list })
-make("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 12), Parent = list })
-local emptyLabel = text({
-	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.fromScale(0.5, 0.42),
-	Size = UDim2.new(1, -60, 0, 120),
-	Text = "Your bag is empty!\nShoot an animal, pick it up (E)\nand carry it over the red line.",
-	TextWrapped = true,
-	TextSize = 26,
-	Visible = false,
-	Parent = bagBody,
-})
-
-local inventory = player:WaitForChild("AnimalInventory", 5)
-local STATE_TEXT = { Bag = "In bag", Held = "In hand", Plot = "On plot" }
-local rarityRank = {}
-for i, r in ipairs(AnimalData.RarityOrder) do
-	rarityRank[r] = i
+local function renderPets()
+ local body=pets.Content
+ local items={}
+ local equipped=0
+ if inventory then for _,item in inventory:GetChildren() do
+  if item:IsA("Folder") then
+   if item:GetAttribute("State")=="Plot" then equipped+=1 end
+   if petFilter=="All" or item:GetAttribute("State")=="Plot" then table.insert(items,item) end
+  end
+ end end
+ table.sort(items,function(a,b)
+  local ia,ib=a:GetAttribute("Income") or 0,b:GetAttribute("Income") or 0
+  return ia==ib and (a:GetAttribute("Id") or 0)<(b:GetAttribute("Id") or 0) or ia>ib
+ end)
+ body.Count.Text=string.format("%d / 24 EQUIPPED",equipped)
+ body.Income.Text="$"..data.Commas(player:GetAttribute("IncomePerSecond") or 0).." / SECOND"
+ body.EquippedTab.BackgroundColor3=petFilter=="Equipped" and green or blue
+ body.AllTab.BackgroundColor3=petFilter=="All" and green or blue
+ local scroller=body.Cards
+ local oldScroll=scroller.CanvasPosition
+ clearCards(scroller)
+ local vp=workspace.CurrentCamera.ViewportSize
+ local compact=vp.X<760 or vp.Y<450
+ body.Status.Visible=not compact
+ scroller.Size=UDim2.fromScale(1,compact and .68 or .59)
+ if compact then
+  scroller:FindFirstChildOfClass("UIGridLayout").CellSize=UDim2.fromOffset(math.max(100,layoutSize(scroller).X-16),math.max(100,math.min(120,layoutSize(scroller).Y-12)))
+ else
+  gridSize(scroller,math.min(math.clamp(layoutSize(scroller).X*.39,142,214),math.max(142,layoutSize(scroller).Y-16)))
+ end
+ body.Empty.Visible=#items==0
+ body.Empty.Text=petFilter=="Equipped" and "NO PETS EQUIPPED\nCatch animals, then tap EQUIP BEST!" or "NO PETS YET\nBring a stunned animal back across the red line."
+ for i,item in items do
+  local a=item:GetAttributes()
+  local species=a.Species or "Pet"
+  local c=card(scroller,"Pet_"..tostring(a.Id),i,a.Rarity)
+  c:SetAttribute("EntryId",a.Id) c:SetAttribute("State",a.State)
+  picture(c,species,false,a.Mutation)
+  -- Pet pictures leave room for two action buttons.
+  c.Preview.Size=UDim2.fromScale(.90,.42)
+  label("Name",c,string.upper(species),UDim2.fromScale(.02,.47),UDim2.fromScale(.96,.10),18)
+  local variant=string.upper(a.Size or "Medium")..(a.Mutation and a.Mutation~="None" and (" • "..string.upper(a.Mutation)) or "")
+  label("Variant",c,variant,UDim2.fromScale(.02,.59),UDim2.fromScale(.96,.08),11)
+  label("Income",c,"$"..data.Commas(a.Income or 0).."/s",UDim2.fromScale(.02,.69),UDim2.fromScale(.96,.10),18,green)
+  local onPlot=a.State=="Plot"
+  local equip=button("Equip",c,onPlot and "UNEQUIP" or "EQUIP",UDim2.fromScale(.04,.82),UDim2.fromScale(.58,.14),onPlot and red or green)
+  local hold=button("Hold",c,a.State=="Held" and "PUT AWAY" or "HOLD",UDim2.fromScale(.65,.82),UDim2.fromScale(.31,.14),blue)
+  equip.Activated:Connect(function() ask(onPlot and "Bag" or "Plot",a.Id) end)
+  hold.Activated:Connect(function() ask("Hold",a.Id) end)
+  if compact then
+   c.Preview.Position=UDim2.fromScale(.02,.04) c.Preview.Size=UDim2.fromScale(.29,.88)
+   c:FindFirstChild("Name").Position=UDim2.new(.34,0,0,3) c:FindFirstChild("Name").Size=UDim2.new(.64,0,0,20)
+   c.Variant.Position=UDim2.new(.34,0,0,24) c.Variant.Size=UDim2.new(.64,0,0,10)
+   c.Income.Position=UDim2.new(.34,0,0,35) c.Income.Size=UDim2.new(.64,0,0,16)
+   equip.Position=UDim2.new(.34,0,1,-46) equip.Size=UDim2.new(.40,0,0,40)
+   hold.Position=UDim2.new(.76,0,1,-46) hold.Size=UDim2.new(.21,0,0,40)
+  end
+ end
+ scroller.CanvasPosition=oldScroll
 end
-
-local busy = false
-local function ask(action, id)
-	if busy then
-		return
-	end
-	busy = true
-	bagStatus.Text = "..."
-	local ok, success, message = pcall(function()
-		return remote:InvokeServer(action, id)
-	end)
-	busy = false
-	bagStatus.Text = ok and tostring(message or "") or "Try again"
-	bagStatus.TextColor3 = (ok and success) and C.White or Color3.fromRGB(255, 120, 100)
+local refreshPending=false
+refresh=function()
+ if refreshPending then return end refreshPending=true
+ task.defer(function()
+  refreshPending=false
+  if page=="Index" then renderIndex() elseif page=="Pets" then renderPets() end
+ end)
 end
-
-local function renderBag()
-	for _, c in ipairs(list:GetChildren()) do
-		if c:IsA("GuiObject") then
-			c:Destroy()
-		end
-	end
-	local items = inventory and inventory:GetChildren() or {}
-	table.sort(items, function(a, b)
-		local ra, rb = rarityRank[a:GetAttribute("Rarity")] or 0, rarityRank[b:GetAttribute("Rarity")] or 0
-		if ra ~= rb then
-			return ra > rb
-		end
-		return (a:GetAttribute("Id") or 0) > (b:GetAttribute("Id") or 0)
-	end)
-	emptyLabel.Visible = #items == 0
-	for i, item in ipairs(items) do
-		local a = item:GetAttributes()
-		local row = make("Frame", { LayoutOrder = i, Size = UDim2.new(1, 0, 0, 80), BackgroundColor3 = Color3.new(1, 1, 1), Parent = list })
-		UIStyle.corner(row, 14)
-		UIStyle.stroke(row, 3)
-		UIStyle.gradient(row, UIStyle.rarityGradient(a.Rarity), a.Rarity == "Legendary" and 0 or 90)
-		local vp = UIStyle.picture({ Position = UDim2.fromOffset(8, 7), Size = UDim2.fromOffset(66, 66), Parent = row })
-		UIStyle.showModel(vp, previews:FindFirstChild(a.Species))
-		text({
-			Position = UDim2.fromOffset(86, 8),
-			Size = UDim2.new(1, -370, 0, 32),
-			Text = AnimalData.DisplayName(a.Species, a.Size, a.Mutation),
-			TextTruncate = Enum.TextTruncate.AtEnd,
-			TextSize = 24,
-			TextColor3 = MUTATION_COLORS[a.Mutation] or C.White,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			Parent = row,
-		})
-		text({
-			Position = UDim2.fromOffset(86, 42),
-			Size = UDim2.new(1, -370, 0, 24),
-			Text = string.format("%s  •  $%s/s  •  %s", string.upper(a.Rarity or "Common"), AnimalData.Commas(a.Income or 0), STATE_TEXT[a.State] or ""),
-			TextSize = 17,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			Parent = row,
-		})
-		local id = a.Id
-		local onPlot = a.State == "Plot"
-		local place = UIStyle.button({
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -12, 0.5, 0),
-			Size = UDim2.fromOffset(136, 48),
-			Text = onPlot and "Take back" or "Place",
-			TextSize = 21,
-			Color = onPlot and C.Orange or C.Green,
-			Parent = row,
-		})
-		place.Activated:Connect(function()
-			ask(onPlot and "Bag" or "Plot", id)
-		end)
-		local held = a.State == "Held"
-		local hold = UIStyle.button({
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -158, 0.5, 0),
-			Size = UDim2.fromOffset(118, 48),
-			Text = held and "Put away" or "Hold",
-			TextSize = 21,
-			Color = held and C.Grey or C.Blue,
-			Parent = row,
-		})
-		hold.Activated:Connect(function()
-			ask("Hold", id)
-		end)
-	end
+local function resize()
+ local vp=workspace.CurrentCamera.ViewportSize
+ local width=math.min(680,vp.X-32,vp.Y*.80*1.40090096)
+ for _,frame in {index,pets} do frame.Size=UDim2.fromOffset(width,width/1.40090096) end
+ gui.CarryBanner.Size=UDim2.fromOffset(math.min(650,vp.X-32),44)
+ local scale=gui.HUD:FindFirstChildOfClass("UIScale") or make("UIScale",{},gui.HUD)
+ scale.Scale=math.min(1,vp.X/800,vp.Y/550)
+ local hideSides=page~=nil and vp.X<760
+ gui.LeftButtons.Visible=not hideSides gui.RightButtons.Visible=not hideSides gui.TopButtons.Visible=not hideSides
+ refresh()
 end
-
----------------------------------------------------------------- open / close
-local openPage = nil
-local refresh -- forward (live updates below)
-local function setOpen(page)
-	openPage = page
-	indexWindow.Visible = page == "index"
-	bagWindow.Visible = page == "bag"
-	gui:SetAttribute("Open", page ~= nil)
-	indexStatus.Text, bagStatus.Text = "", ""
-	if page == "index" then
-		indexBadge.Visible = false
-		renderIndex()
-		UIStyle.pop(indexWindow, fitScale())
-	elseif page == "bag" then
-		bagBadge.Visible = false
-		renderBag()
-		UIStyle.pop(bagWindow, fitScale())
-	end
+local function setOpen(value)
+ if value==page then value=nil end
+ if value and not page then lastMouse=UserInputService.MouseBehavior end
+ page=value
+ motion.SetFrame(index,value=="Index") motion.SetFrame(pets,value=="Pets")
+ gui:SetAttribute("Open",value~=nil)
+ if value then UserInputService.MouseBehavior=Enum.MouseBehavior.Default UserInputService.MouseIconEnabled=true
+ elseif lastMouse then UserInputService.MouseBehavior=lastMouse lastMouse=nil end
+ pets.Content.Status.Text="Equipped pets earn money on your plot."
+ resize()
+ refresh()
 end
-
-indexTile.Activated:Connect(function()
-	setOpen(openPage ~= "index" and "index" or nil)
+for i,world in data.Worlds do
+ local tab=button("World_"..world.id,index.Content.WorldTabs,string.upper(world.name),UDim2.new(),UDim2.fromOffset(145,32),blue)
+ tab.LayoutOrder=i tab:SetAttribute("WorldIndex",i)
+ tab.Activated:Connect(function() worldIndex=i index.Content.Cards.CanvasPosition=Vector2.zero renderIndex() end)
+end
+gui.LeftButtons.Index.Activated:Connect(function() setOpen("Index") end)
+gui.RightButtons.Pets.Activated:Connect(function() petFilter="Equipped" setOpen("Pets") end)
+index.CloseButton.Activated:Connect(function() setOpen(nil) end)
+pets.CloseButton.Activated:Connect(function() setOpen(nil) end)
+pets.Content.EquippedTab.Activated:Connect(function() petFilter="Equipped" pets.Content.Cards.CanvasPosition=Vector2.zero renderPets() end)
+pets.Content.AllTab.Activated:Connect(function() petFilter="All" pets.Content.Cards.CanvasPosition=Vector2.zero renderPets() end)
+pets.Content.EquipBest.Activated:Connect(function() ask("EquipBest") end)
+UserInputService.InputBegan:Connect(function(input,processed)
+ if not processed and (input.KeyCode==Enum.KeyCode.Backspace or input.KeyCode==Enum.KeyCode.ButtonB) and page then setOpen(nil) end
 end)
-bagTile.Activated:Connect(function()
-	setOpen(openPage ~= "bag" and "bag" or nil)
-end)
-indexClose.Activated:Connect(function()
-	setOpen(nil)
-end)
-bagClose.Activated:Connect(function()
-	setOpen(nil)
-end)
-
--- the Weapon Shop view is full screen: step aside while it's open
+local notificationSerial=0
+notice=function(message)
+ notificationSerial+=1 local serial=notificationSerial
+ local node=gui:FindFirstChild("Notification") or label("Notification",gui,"",UDim2.fromScale(.2,.84),UDim2.fromScale(.6,.07),21)
+ node.ZIndex=40 node.Text=tostring(message) node.Visible=true
+ task.delay(3,function() if notificationSerial==serial then node.Visible=false end end)
+end
+local travelBusy=false
+local function travel(destination)
+ if travelBusy then return end travelBusy=true
+ if page then setOpen(nil) end
+ local ok,success,message=pcall(function() return teleport:InvokeServer(destination) end)
+ if not ok or not success then notice(ok and message or "Please try again.") end
+ travelBusy=false
+end
+for _,destination in {"Base","Weapons","Speed"} do gui.TopButtons[destination].Activated:Connect(function() travel(destination) end) end
+-- The supplied Shop tile also takes you to the existing weapon shop.
+gui.LeftButtons.Shop.Activated:Connect(function() travel("Weapons") end)
+local function updateHUD()
+ gui.HUD.Income.Text="+$"..data.Commas(player:GetAttribute("IncomePerSecond") or 0).." / SECOND"
+ if page=="Pets" then refresh() end
+end
+player:GetAttributeChangedSignal("IncomePerSecond"):Connect(updateHUD)
 task.spawn(function()
-	local shopGui = player.PlayerGui:WaitForChild("WeaponShopUI", 60)
-	if not shopGui then
-		return
-	end
-	local function sync()
-		if shopGui.Enabled and openPage then
-			setOpen(nil)
-		end
-		gui.Enabled = not shopGui.Enabled
-	end
-	shopGui:GetPropertyChangedSignal("Enabled"):Connect(sync)
-	sync()
+ local cash=player:WaitForChild("leaderstats"):WaitForChild("Cash")
+ local function update() gui.HUD.Cash.Text="$"..data.Commas(cash.Value) end
+ cash.Changed:Connect(update) update()
 end)
-
--- live updates
-local pending = false
-function refresh()
-	if pending then
-		return
-	end
-	pending = true
-	task.defer(function()
-		pending = false
-		if openPage == "index" then
-			renderIndex()
-		elseif openPage == "bag" then
-			renderBag()
-		end
-	end)
+task.spawn(function()
+ local animals=workspace:WaitForChild("Animals")
+ while gui.Parent do
+  local nextAt=animals:GetAttribute("NextWaveAt")
+  if nextAt then local left=math.max(0,nextAt-os.time()) gui.HUD.Wave.Text=string.format("NEW ANIMALS IN %d:%02d",left//60,left%60) end
+  task.wait(.5)
+ end
+end)
+local function watchItem(item)
+ if connections[item] then return end
+ connections[item]=item.AttributeChanged:Connect(refresh)
 end
-player.AttributeChanged:Connect(function(name)
-	if name:sub(1, 7) == "Caught_" then
-		if openPage ~= "index" and player:GetAttribute(name) == 1 then
-			indexBadge.Visible = true -- a new animal unlocked
-		end
-		refresh()
-	end
-end)
 local function watchInventory(folder)
-	inventory = folder
-	folder.ChildAdded:Connect(function(item)
-		item.AttributeChanged:Connect(refresh)
-		if openPage ~= "bag" then
-			bagBadge.Visible = true
-		end
-		refresh()
-	end)
-	folder.ChildRemoved:Connect(refresh)
-	for _, item in ipairs(folder:GetChildren()) do
-		item.AttributeChanged:Connect(refresh)
-	end
-	refresh()
+ inventory=folder
+ for _,item in folder:GetChildren() do watchItem(item) end
+ folder.ChildAdded:Connect(function(item) watchItem(item) refresh() end)
+ folder.ChildRemoved:Connect(function(item) if connections[item] then connections[item]:Disconnect() connections[item]=nil end refresh() end)
+ refresh()
 end
-
--- meshes in ReplicatedStorage aren't downloaded until something asks: load the pictures' meshes up front
+local existing=player:FindFirstChild("AnimalInventory")
+if existing then watchInventory(existing) end
+player.ChildAdded:Connect(function(child) if child.Name=="AnimalInventory" and child~=inventory then watchInventory(child) end end)
+player.AttributeChanged:Connect(function(name) if name:sub(1,7)=="Caught_" then refresh() end end)
+local animalEvent=ReplicatedStorage:WaitForChild("AnimalEvent")
+local function drop() animalEvent:FireServer("Drop") end
+gui.CarryBanner.Drop.Activated:Connect(drop)
+local function carryChanged()
+ local carrying=player:GetAttribute("Carrying")
+ gui.CarryBanner.Visible=carrying~=nil
+ gui.CarryBanner.Label.Text=carrying and ("CARRYING "..string.upper(carrying).." — BRING IT HOME!") or ""
+ if carrying then
+  ContextActionService:BindAction("DropAnimal",function(_,state) if state==Enum.UserInputState.Begin then drop() end return Enum.ContextActionResult.Sink end,false,Enum.KeyCode.G,Enum.KeyCode.ButtonY)
+ else ContextActionService:UnbindAction("DropAnimal") end
+end
+player:GetAttributeChangedSignal("Carrying"):Connect(carryChanged) carryChanged()
 task.spawn(function()
-	ContentProvider:PreloadAsync({ previews })
-	refresh()
+ local shop=player.PlayerGui:WaitForChild("WeaponShopUI",60)
+ if shop then
+  local function sync() if shop.Enabled and page then setOpen(nil) end gui.Enabled=not shop.Enabled end
+  shop:GetPropertyChangedSignal("Enabled"):Connect(sync) sync()
+ end
 end)
-
-if inventory then
-	watchInventory(inventory)
-else
-	player.ChildAdded:Connect(function(child)
-		if child.Name == "AnimalInventory" then
-			watchInventory(child)
-		end
-	end)
-end
-
----------------------------------------------------------------- carrying banner
-local carryBanner = make("Frame", {
-	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 12),
-	Size = UDim2.fromOffset(740, 56),
-	BackgroundColor3 = Color3.new(1, 1, 1),
-	Visible = false,
-	Parent = gui,
-})
-UIStyle.corner(carryBanner, 14)
-UIStyle.stroke(carryBanner, 3)
-UIStyle.gradient(carryBanner, ColorSequence.new(Color3.fromRGB(255, 104, 40), Color3.fromRGB(255, 196, 56)), 0)
-local carryText = text({ Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -170, 1, 0), Text = "", TextSize = 24, Parent = carryBanner })
-
--- put it down (G / the button / gamepad Y): its stun timer starts over and it wakes up if you leave it (AnimalCarry)
-local animalEvent = ReplicatedStorage:WaitForChild("AnimalEvent")
-local function dropIt()
-	animalEvent:FireServer("Drop")
-end
-local dropButton = UIStyle.button({
-	AnchorPoint = Vector2.new(1, 0.5),
-	Position = UDim2.new(1, -10, 0.5, 0),
-	Size = UDim2.fromOffset(140, 42),
-	Text = "Drop (G)",
-	TextSize = 20,
-	Color = C.Red,
-	Parent = carryBanner,
-})
-dropButton.Activated:Connect(dropIt)
-local function dropAction(_, state)
-	if state == Enum.UserInputState.Begin then
-		dropIt()
-	end
-	return Enum.ContextActionResult.Sink
-end
-
-local function updateCarry()
-	local carrying = player:GetAttribute("Carrying")
-	local show = carrying ~= nil
-	if show and not carryBanner.Visible then
-		UIStyle.pop(carryBanner)
-	end
-	carryBanner.Visible = show
-	if carrying then
-		carryText.Text = string.format("🐾 Carrying %s  →  take it over the RED LINE!", carrying)
-		ContextActionService:BindAction("DropAnimal", dropAction, false, Enum.KeyCode.G, Enum.KeyCode.ButtonY)
-	else
-		ContextActionService:UnbindAction("DropAnimal")
-	end
-end
-player:GetAttributeChangedSignal("Carrying"):Connect(updateCarry)
-updateCarry()
+workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resize)
+task.spawn(function() pcall(function() ContentProvider:PreloadAsync({previews}) end) refresh() end)
+motion.SetFrame(index,false,true) motion.SetFrame(pets,false,true)
+resize() updateHUD() gui:SetAttribute("Ready",true)
