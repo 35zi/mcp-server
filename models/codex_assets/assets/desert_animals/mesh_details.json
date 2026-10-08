@@ -1,0 +1,50 @@
+{
+  "Scorpion": {
+    "parts": 53,
+    "triangles": 656,
+    "materials": 0,
+    "non_manifold": [],
+    "dimensions_blender_units": [
+      3.03,
+      3.823,
+      2.3
+    ],
+    "file": "scorpion.fbx"
+  },
+  "Spider": {
+    "parts": 37,
+    "triangles": 452,
+    "materials": 0,
+    "non_manifold": [],
+    "dimensions_blender_units": [
+      4.2,
+      3.161,
+      1.635
+    ],
+    "file": "spider.fbx"
+  },
+  "Camel": {
+    "parts": 33,
+    "triangles": 428,
+    "materials": 0,
+    "non_manifold": [],
+    "dimensions_blender_units": [
+      1.62,
+      3.819,
+      2.987
+    ],
+    "file": "camel.fbx"
+  },
+  "Vulture": {
+    "parts": 32,
+    "triangles": 472,
+    "materials": 0,
+    "non_manifold": [],
+    "dimensions_blender_units": [
+      1.884,
+      3.33,
+      2.845
+    ],
+    "file": "vulture.fbx"
+  }
+}

@@ -1,0 +1,7 @@
+*.py text eol=lf
+*.lua text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.fbx binary
+*.blend binary
+*.png binary
