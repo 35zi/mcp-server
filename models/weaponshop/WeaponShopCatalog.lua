@@ -14,7 +14,7 @@ return {
 		Name = "Python",
 		Price = 50,
 		Blurb = "Looks great. Shoots terribly.",
-		Stats = { Damage = 1, Range = 1, ["Fire Rate"] = 1, Accuracy = 1 },
+		Stats = { Damage = 1, Range = 3, ["Fire Rate"] = 1, Accuracy = 2 },
 	},
 	{ Id = "Weapon2", Name = "Weapon 2", Price = nil },
 	{ Id = "Weapon3", Name = "Weapon 3", Price = nil },
