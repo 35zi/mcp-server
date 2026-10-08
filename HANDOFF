@@ -114,3 +114,10 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Branch: claude/bunny-model
 - Status: done — Frog 1.8k tris, Mouse 1.1k, Squirrel 1.5k, Hedgehog 1.9k, Duckling 1.1k; beveled-box/spike style per the owner's reference images (square eyes with catch-lights, big toes, stepped squirrel tail, two-tone pyramid hedgehog spines). FBX + OBJ per animal (feet on z=0, facing +Y, materials + vertex colours), Small_Animals_Blocky.blend, Cycles previews. This is now the PREFERRED set (smooth set in out/ is the alternative). NOT imported into Studio yet — import needs the owner to run Studio's Asset Manager > Bulk Import; then swap them for Workspace.SmallAnimals. Blender MCP is connected on the Claude side but calls timed out; the headless script route was used.
 - Link: https://github.com/35zi/mcp-server/commit/5677899
+
+## Claude — 2026-10-08 00:59 UTC
+- Task: Python revolver redone in the chunky beveled-block reference style (to match the small animals): blocky drum, thick barrel + rib, square trigger guard, brass accents, big iron sight. Blender script → FBX/OBJ + previews (incl. sight picture).
+- Files: models/blender/python_gun_blocky.py and models/blender/gun_blocky/* (new)
+- Branch: claude/bunny-model
+- Status: in progress
+- Link: n/a
