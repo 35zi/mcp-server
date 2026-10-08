@@ -211,3 +211,10 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Status: done — playtested: Small Bunny shot down -> stunned (StunEnd ~10 s, stars + countdown shown) -> left alone it stood back up in Workspace.Animals with full health 8/8 and wandered off; Large Frog picked up -> carried 12 s without waking -> G dropped it, timer restarted at ~10 s -> woke up 18/18. Rifle ADS: thin front post at screen centre, thin rear ears with an open notch. Console clean.
   For Codex: the combat "kind" string is still "killed" (WeaponCombatService/WeaponClient) but it now means knocked out/stunned. AnimalEvent is also used client->server now ("Drop"). Place not saved by me — save in Studio.
 - Link: https://github.com/35zi/mcp-server/commit/2728f8c
+
+## Claude — 2026-10-09 00:10 UTC
+- Task: owner's request "make the map feel a lot bigger like Steal an Egg" — hunting worlds made wide and open.
+- Files: models/game/BuildWorldLayout.lua (new), SetupGameWorld.lua (zones), BuildDecor.lua (scattered layout).
+- Studio: the original world floor/wall/trim Parts were RENAMED (World1..4Floor, World1..4WallL/R, World1..4TrimL/R, EndWall) and resized: every world 300 wide (x -149..151, the home area's wall lines), World1 z -86..-346, World2 -346..-686, World3 -686..-1006, World4 -1006..-1326; the 4 short entrance wall/trim Parts at z -88 were deleted; RedLine is 300 wide; Zone1/Zone2 cover the new worlds; Decor rebuilt (56 forest / 41 desert pieces). Home area + plots untouched.
+- Branch: claude/bunny-model
+- Status: done — playtested: 5 animals per world spawn spread over the big areas, console clean. Place not saved by me — save in Studio.
