@@ -23,6 +23,7 @@ local WORLD_ICONS = { "🌲", "🌵" }
 
 local gui = make("ScreenGui", { Name = "AnimalMenu", ResetOnSpawn = false, DisplayOrder = 6, Parent = player:WaitForChild("PlayerGui") })
 gui:SetAttribute("Open", false)
+local MUTATION_COLORS = { Gold = Color3.fromRGB(255, 205, 50), Silver = Color3.fromRGB(215, 225, 240) }
 
 ---------------------------------------------------------------- side tiles
 local side = make("Frame", {
@@ -242,6 +243,7 @@ local function renderBag()
 			Text = AnimalData.DisplayName(a.Species, a.Size, a.Mutation),
 			TextTruncate = Enum.TextTruncate.AtEnd,
 			TextSize = 24,
+			TextColor3 = MUTATION_COLORS[a.Mutation] or C.White,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Parent = row,
 		})
@@ -314,6 +316,22 @@ indexClose.Activated:Connect(function()
 end)
 bagClose.Activated:Connect(function()
 	setOpen(nil)
+end)
+
+-- the Weapon Shop view is full screen: step aside while it's open
+task.spawn(function()
+	local shopGui = player.PlayerGui:WaitForChild("WeaponShopUI", 60)
+	if not shopGui then
+		return
+	end
+	local function sync()
+		if shopGui.Enabled and openPage then
+			setOpen(nil)
+		end
+		gui.Enabled = not shopGui.Enabled
+	end
+	shopGui:GetPropertyChangedSignal("Enabled"):Connect(sync)
+	sync()
 end)
 
 -- live updates

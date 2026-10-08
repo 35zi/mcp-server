@@ -165,6 +165,16 @@ end
 
 ---------------------------------------------------------------- HUD: animals in your bag + wave timer (bottom left), banners, popup
 local gui = make("ScreenGui", { Name = "AnimalHud", ResetOnSpawn = false, DisplayOrder = 4, Parent = player:WaitForChild("PlayerGui") })
+task.spawn(function() -- hide while the full-screen Weapon Shop view is open
+	local shopGui = player.PlayerGui:WaitForChild("WeaponShopUI", 60)
+	if shopGui then
+		local function sync()
+			gui.Enabled = not shopGui.Enabled
+		end
+		shopGui:GetPropertyChangedSignal("Enabled"):Connect(sync)
+		sync()
+	end
+end)
 local hud = make("Frame", {
 	Name = "Bag",
 	AnchorPoint = Vector2.new(0, 1),
