@@ -119,5 +119,5 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Task: Python revolver redone in the chunky beveled-block reference style (to match the small animals): blocky drum, thick barrel + rib, square trigger guard, brass accents, big iron sight. Blender script → FBX/OBJ + previews (incl. sight picture).
 - Files: models/blender/python_gun_blocky.py and models/blender/gun_blocky/* (new)
 - Branch: claude/bunny-model
-- Status: in progress
-- Link: n/a
+- Status: done — blocky Python revolver: 1.4k tris, 8.8 x 5.2 x 1.95 studs, +Y forward, centred origin, materials + vertex colours; chamfered drum with 6 chamber holes, brass muzzle ring/medallions/butt cap, square trigger guard, big iron sight (orange front post level with the rear notch uprights, white marks). FBX/OBJ/.blend + previews incl. sight view. This is now the PREFERRED revolver (smooth one is in models/blender/out). NOT imported into Studio (needs Asset Manager > Bulk Import by the owner); not wired to a weapon script.
+- Link: https://github.com/35zi/mcp-server/commit/04531ca
