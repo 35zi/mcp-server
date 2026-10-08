@@ -9,6 +9,7 @@
 -- only asks). Items without a price show COMING SOON.
 -- Positions come from the markers in Workspace.WeaponShop.ShopView:
 --   ShopZone (invisible cylinder over the ring), ShopCamera, PreviewSpot, ExitPoint.
+-- Look: ReplicatedStorage.UIStyle (the game's shared UI style).
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -35,13 +36,12 @@ local RENDER_STEP = "WeaponShopRender"
 local SLIDE = 7 -- studs a preview slides when switching items
 
 local YELLOW = Color3.fromRGB(255, 214, 51)
-local DARK = Color3.fromRGB(43, 29, 20)
-local LIGHT = Color3.fromRGB(232, 213, 192)
 local WHITE = Color3.new(1, 1, 1)
 local BLACK = Color3.fromRGB(20, 20, 24)
-local GREEN = Color3.fromRGB(47, 179, 74)
-local GREY = Color3.fromRGB(110, 110, 120)
-local RED = Color3.fromRGB(214, 54, 45)
+local GREEN = Color3.fromRGB(76, 208, 56)
+local GREY = Color3.fromRGB(150, 150, 165)
+local RED = Color3.fromRGB(235, 64, 52)
+local BLUE = Color3.fromRGB(54, 150, 255)
 
 -- Optional: the default PlayerModule's movement controls, when the place has one (not every place does,
 -- so the character is also frozen directly through its Humanoid, see freezeCharacter)
@@ -56,26 +56,10 @@ task.spawn(function()
 	end
 end)
 
----------------------------------------------------------------- UI
-local function make(class, props)
-	local inst = Instance.new(class)
-	local parent = props.Parent
-	props.Parent = nil
-	for key, value in pairs(props) do
-		inst[key] = value
-	end
-	inst.Parent = parent
-	return inst
-end
-local function corner(parent, radius)
-	make("UICorner", { CornerRadius = radius, Parent = parent })
-end
-local function outline(parent, color, thickness)
-	make("UIStroke", { Color = color, Thickness = thickness, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = parent })
-end
-local function textOutline(parent, thickness)
-	make("UIStroke", { Color = BLACK, Thickness = thickness, Parent = parent })
-end
+---------------------------------------------------------------- UI (look: ReplicatedStorage.UIStyle)
+local UIStyle = require(ReplicatedStorage:WaitForChild("UIStyle"))
+local make, text = UIStyle.make, UIStyle.text
+local EMPTY = Color3.fromRGB(120, 72, 30)
 
 local gui = make("ScreenGui", {
 	Name = "WeaponShopUI",
@@ -87,232 +71,201 @@ local gui = make("ScreenGui", {
 	Parent = player:WaitForChild("PlayerGui"),
 })
 
-local title = make("TextLabel", {
+-- title: orange header with an icon
+local title = make("Frame", {
 	Name = "Title",
 	AnchorPoint = Vector2.new(0.5, 0),
-	Size = UDim2.fromOffset(520, 70),
-	BackgroundTransparency = 1,
-	Text = "WEAPON SHOP",
-	Font = Enum.Font.GothamBlack,
-	TextScaled = true,
-	TextColor3 = YELLOW,
+	Size = UDim2.fromOffset(440, 74),
+	BackgroundColor3 = WHITE,
 	Parent = gui,
 })
-textOutline(title, 4)
+UIStyle.corner(title, 18)
+UIStyle.stroke(title, 4)
+UIStyle.gradient(title, ColorSequence.new(Color3.fromRGB(255, 104, 40), Color3.fromRGB(255, 196, 56)), 0)
+text({ Position = UDim2.fromOffset(14, 0), Size = UDim2.fromOffset(62, 74), Text = "🔫", TextSize = 42, Stroke = 0, Parent = title })
+text({ Position = UDim2.fromOffset(78, 0), Size = UDim2.new(1, -92, 1, 0), Text = "Weapon Shop", TextSize = 46, Stroke = 4, Parent = title })
 
-local closeButton = make("TextButton", {
+local closeButton = UIStyle.button({
 	Name = "Close",
 	AnchorPoint = Vector2.new(1, 0),
-	Size = UDim2.fromOffset(64, 64),
-	BackgroundColor3 = RED,
+	Size = UDim2.fromOffset(68, 68),
 	Text = "X",
-	Font = Enum.Font.GothamBlack,
-	TextSize = 34,
-	TextColor3 = WHITE,
+	TextSize = 38,
+	Color = RED,
+	Corner = 14,
 	Parent = gui,
 })
-corner(closeButton, UDim.new(0, 16))
-outline(closeButton, BLACK, 3)
 
 local function arrowButton(name, glyph, anchorX)
-	local button = make("TextButton", {
+	return UIStyle.button({
 		Name = name,
 		AnchorPoint = Vector2.new(anchorX, 0.5),
-		Size = UDim2.fromOffset(96, 96),
-		BackgroundColor3 = YELLOW,
+		Size = UDim2.fromOffset(92, 92),
 		Text = glyph,
-		Font = Enum.Font.GothamBlack,
-		TextSize = 56,
-		TextColor3 = DARK,
+		TextSize = 58,
+		Color = UIStyle.Colors.Orange,
+		Corner = 46,
 		Parent = gui,
 	})
-	corner(button, UDim.new(1, 0))
-	outline(button, BLACK, 4)
-	return button
 end
 local leftButton = arrowButton("Previous", "<", 0)
 local rightButton = arrowButton("Next", ">", 1)
 
+-- the item card: name, number, price and the big BUY / EQUIP button
 local card = make("Frame", {
 	Name = "Card",
 	AnchorPoint = Vector2.new(0.5, 1),
-	Size = UDim2.fromOffset(480, 190),
-	BackgroundColor3 = DARK,
+	Size = UDim2.fromOffset(500, 204),
+	BackgroundColor3 = WHITE,
 	Parent = gui,
 })
-corner(card, UDim.new(0, 20))
-outline(card, YELLOW, 4)
+UIStyle.corner(card, 20)
+UIStyle.stroke(card, 4)
+UIStyle.gradient(card, { Color3.fromRGB(255, 226, 112), Color3.fromRGB(255, 172, 46) }, 90)
 
-local nameLabel = make("TextLabel", {
+local nameLabel = text({
 	Name = "ItemName",
-	Position = UDim2.fromOffset(24, 16),
-	Size = UDim2.new(1, -140, 0, 48),
-	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(24, 12),
+	Size = UDim2.new(1, -150, 0, 52),
 	Text = "",
-	Font = Enum.Font.GothamBlack,
 	TextScaled = true,
+	Stroke = 3.5,
 	TextXAlignment = Enum.TextXAlignment.Left,
-	TextColor3 = WHITE,
 	Parent = card,
 })
-textOutline(nameLabel, 3)
 local nameScale = make("UIScale", { Parent = nameLabel })
 
-local countLabel = make("TextLabel", {
+local countLabel = text({
 	Name = "Count",
 	AnchorPoint = Vector2.new(1, 0),
-	Position = UDim2.new(1, -22, 0, 24),
-	Size = UDim2.fromOffset(100, 30),
-	BackgroundTransparency = 1,
+	Position = UDim2.new(1, -22, 0, 22),
+	Size = UDim2.fromOffset(110, 32),
 	Text = "",
-	Font = Enum.Font.GothamBold,
-	TextSize = 22,
+	TextSize = 26,
 	TextXAlignment = Enum.TextXAlignment.Right,
-	TextColor3 = LIGHT,
 	Parent = card,
 })
 
-local priceLabel = make("TextLabel", {
+local priceLabel = text({
 	Name = "Price",
-	Position = UDim2.fromOffset(24, 68),
-	Size = UDim2.new(1, -48, 0, 34),
-	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(24, 66),
+	Size = UDim2.new(1, -48, 0, 40),
 	Text = "",
-	Font = Enum.Font.GothamBlack,
-	TextSize = 28,
+	TextSize = 36,
+	Stroke = 3,
+	TextColor3 = UIStyle.Colors.Money,
 	TextXAlignment = Enum.TextXAlignment.Left,
-	TextColor3 = YELLOW,
 	Parent = card,
 })
-textOutline(priceLabel, 2)
 
-local buyButton = make("TextButton", {
+local buyButton = UIStyle.button({
 	Name = "Buy",
 	AnchorPoint = Vector2.new(0.5, 1),
-	Position = UDim2.new(0.5, 0, 1, -18),
-	Size = UDim2.new(1, -48, 0, 58),
-	BackgroundColor3 = GREEN,
+	Position = UDim2.new(0.5, 0, 1, -16),
+	Size = UDim2.new(1, -48, 0, 66),
 	Text = "BUY",
-	Font = Enum.Font.GothamBlack,
-	TextSize = 30,
-	TextColor3 = WHITE,
+	TextSize = 34,
+	Color = GREEN,
+	Corner = 16,
 	Parent = card,
 })
-corner(buyButton, UDim.new(0, 14))
-outline(buyButton, BLACK, 3)
 
-local hint = make("TextLabel", {
+local hint = text({
 	Name = "Hint",
 	AnchorPoint = Vector2.new(0.5, 1),
-	Size = UDim2.fromOffset(640, 24),
-	BackgroundTransparency = 1,
+	Size = UDim2.fromOffset(700, 26),
 	Text = "",
-	Font = Enum.Font.GothamBold,
-	TextSize = 18,
-	TextColor3 = WHITE,
+	TextSize = 20,
 	Parent = gui,
 })
-textOutline(hint, 2)
 
-local BLUE = Color3.fromRGB(60, 110, 200)
-local EMPTY = Color3.fromRGB(80, 62, 48)
-
-local cashLabel = make("TextLabel", {
+-- your Cash, big and green in the bottom left
+local cashLabel = text({
 	Name = "Cash",
-	Size = UDim2.fromOffset(230, 46),
-	BackgroundColor3 = DARK,
-	Text = "Cash: $0",
-	Font = Enum.Font.GothamBlack,
-	TextSize = 24,
-	TextColor3 = YELLOW,
+	AnchorPoint = Vector2.new(0, 1),
+	Size = UDim2.fromOffset(320, 60),
+	Text = "$0",
+	TextSize = 50,
+	Stroke = 4.5,
+	TextColor3 = UIStyle.Colors.Money,
+	TextXAlignment = Enum.TextXAlignment.Left,
 	Parent = gui,
 })
-corner(cashLabel, UDim.new(0, 12))
-outline(cashLabel, YELLOW, 3)
 
 -- stats panel: one 10-segment bar per stat (the value is 1-10; "?" while a weapon's stats are undecided)
 local statsPanel = make("Frame", {
 	Name = "Stats",
 	AnchorPoint = Vector2.new(1, 0),
-	Size = UDim2.fromOffset(330, 214),
-	BackgroundColor3 = DARK,
+	Size = UDim2.fromOffset(350, 240),
+	BackgroundColor3 = WHITE,
 	Parent = gui,
 })
-corner(statsPanel, UDim.new(0, 16))
-outline(statsPanel, YELLOW, 3)
-make("TextLabel", {
+UIStyle.corner(statsPanel, 18)
+UIStyle.stroke(statsPanel, 4)
+UIStyle.gradient(statsPanel, { Color3.fromRGB(255, 226, 112), Color3.fromRGB(255, 172, 46) }, 90)
+text({
 	Name = "Title",
 	Position = UDim2.fromOffset(16, 8),
-	Size = UDim2.fromOffset(200, 28),
-	BackgroundTransparency = 1,
-	Text = "STATS",
-	Font = Enum.Font.GothamBlack,
-	TextSize = 22,
+	Size = UDim2.fromOffset(220, 36),
+	Text = "📊 Stats",
+	TextSize = 30,
 	TextXAlignment = Enum.TextXAlignment.Left,
-	TextColor3 = YELLOW,
 	Parent = statsPanel,
 })
 local STAT_ORDER = { "Damage", "Range", "Fire Rate", "Accuracy" }
 local statRows = {}
 for i, name in ipairs(STAT_ORDER) do
-	local y = 44 + (i - 1) * 34
-	make("TextLabel", {
+	local y = 52 + (i - 1) * 36
+	text({
 		Name = name,
 		Position = UDim2.fromOffset(16, y),
-		Size = UDim2.fromOffset(96, 26),
-		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(108, 28),
 		Text = name,
-		Font = Enum.Font.GothamBold,
-		TextSize = 17,
+		TextSize = 20,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		TextColor3 = WHITE,
 		Parent = statsPanel,
 	})
 	local segments = {}
 	for k = 1, 10 do
 		segments[k] = make("Frame", {
-			Position = UDim2.fromOffset(114 + (k - 1) * 17, y + 5),
-			Size = UDim2.fromOffset(15, 16),
+			Position = UDim2.fromOffset(126 + (k - 1) * 17, y + 5),
+			Size = UDim2.fromOffset(14, 18),
 			BackgroundColor3 = EMPTY,
 			BorderSizePixel = 0,
 			Parent = statsPanel,
 		})
+		UIStyle.corner(segments[k], 4)
+		UIStyle.stroke(segments[k], 1.5)
 	end
-	local value = make("TextLabel", {
-		Position = UDim2.fromOffset(290, y),
-		Size = UDim2.fromOffset(28, 26),
-		BackgroundTransparency = 1,
+	local value = text({
+		Position = UDim2.fromOffset(300, y),
+		Size = UDim2.fromOffset(36, 28),
 		Text = "",
-		Font = Enum.Font.GothamBlack,
-		TextSize = 18,
-		TextColor3 = YELLOW,
+		TextSize = 24,
 		Parent = statsPanel,
 	})
 	statRows[i] = { segments = segments, value = value }
 end
-local blurbLabel = make("TextLabel", {
+local blurbLabel = text({
 	Name = "Blurb",
-	Position = UDim2.fromOffset(16, 182),
-	Size = UDim2.fromOffset(298, 24),
-	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(16, 202),
+	Size = UDim2.fromOffset(318, 28),
 	Text = "",
-	Font = Enum.Font.GothamMedium,
-	TextSize = 15,
+	TextSize = 18,
 	TextXAlignment = Enum.TextXAlignment.Left,
-	TextColor3 = LIGHT,
 	Parent = statsPanel,
 })
 
 -- element, on-screen position, off-screen position (for the slide in/out)
 local layout = {
-	{ title, UDim2.new(0.5, 0, 0, 28), UDim2.new(0.5, 0, 0, -130) },
+	{ title, UDim2.new(0.5, 0, 0, 24), UDim2.new(0.5, 0, 0, -130) },
 	{ closeButton, UDim2.new(1, -28, 0, 28), UDim2.new(1, 130, 0, 28) },
 	{ leftButton, UDim2.new(0, 36, 0.5, 0), UDim2.new(0, -170, 0.5, 0) },
 	{ rightButton, UDim2.new(1, -36, 0.5, 0), UDim2.new(1, 170, 0.5, 0) },
-	{ card, UDim2.new(0.5, 0, 1, -40), UDim2.new(0.5, 0, 1, 320) },
-	{ hint, UDim2.new(0.5, 0, 1, -10), UDim2.new(0.5, 0, 1, 90) },
-	{ cashLabel, UDim2.new(0, 28, 0, 28), UDim2.new(0, -260, 0, 28) },
-	{ statsPanel, UDim2.new(1, -28, 0, 90), UDim2.new(1, 400, 0, 90) },
+	{ card, UDim2.new(0.5, 0, 1, -44), UDim2.new(0.5, 0, 1, 320) },
+	{ hint, UDim2.new(0.5, 0, 1, -12), UDim2.new(0.5, 0, 1, 90) },
+	{ cashLabel, UDim2.new(0, 28, 1, -28), UDim2.new(0, -360, 1, -28) },
+	{ statsPanel, UDim2.new(1, -28, 0, 110), UDim2.new(1, 400, 0, 110) },
 }
 for _, entry in ipairs(layout) do
 	entry[1].Position = entry[3]
@@ -571,8 +524,18 @@ end
 -- What the server says about this player: cash, owned weapons, equipped weapon (see WeaponShopService)
 local shopState = { cash = 0, owned = {}, equipped = nil }
 
+-- 62189 -> "62,189"
+local function withCommas(n)
+	local s = tostring(math.floor(tonumber(n) or 0))
+	local sign, digits = s:match("^(-?)(%d+)$")
+	if not digits then
+		return s
+	end
+	return sign .. digits:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+end
+
 local function updateCash()
-	cashLabel.Text = "Cash: $" .. tostring(shopState.cash)
+	cashLabel.Text = "$" .. withCommas(shopState.cash)
 end
 
 local function updateStats()
@@ -581,7 +544,7 @@ local function updateStats()
 		local row = statRows[i]
 		local value = item.Stats and item.Stats[name]
 		for k = 1, 10 do
-			row.segments[k].BackgroundColor3 = (value and k <= value) and YELLOW or EMPTY
+			row.segments[k].BackgroundColor3 = (value and k <= value) and GREEN or EMPTY
 		end
 		row.value.Text = value and tostring(value) or "?"
 	end
@@ -595,19 +558,15 @@ local function updateButton()
 	end
 	local item = catalog[index]
 	if typeof(item.Price) ~= "number" then
-		buyButton.Text = "COMING SOON"
-		buyButton.BackgroundColor3 = GREY
+		UIStyle.setButton(buyButton, "COMING SOON", GREY)
 	elseif shopState.owned[item.Id] then
 		if shopState.equipped == item.Id then
-			buyButton.Text = "UNEQUIP"
-			buyButton.BackgroundColor3 = GREY
+			UIStyle.setButton(buyButton, "UNEQUIP", GREY)
 		else
-			buyButton.Text = "EQUIP"
-			buyButton.BackgroundColor3 = BLUE
+			UIStyle.setButton(buyButton, "EQUIP", BLUE)
 		end
 	else
-		buyButton.Text = "BUY  $" .. tostring(item.Price)
-		buyButton.BackgroundColor3 = GREEN
+		UIStyle.setButton(buyButton, "BUY  $" .. withCommas(item.Price), GREEN)
 	end
 end
 
@@ -634,8 +593,7 @@ end
 -- show a short message on the button, then go back to its normal text
 local function flash(text, color)
 	buyBusy = true
-	buyButton.Text = text
-	buyButton.BackgroundColor3 = color
+	UIStyle.setButton(buyButton, text, color)
 	task.delay(1.1, function()
 		buyBusy = false
 		updateButton()
@@ -647,9 +605,9 @@ local function updateLabels()
 	nameLabel.Text = item.Name
 	countLabel.Text = string.format("%d / %d", index, #catalog)
 	if typeof(item.Price) == "number" then
-		priceLabel.Text = "Price: $" .. tostring(item.Price)
+		priceLabel.Text = "$" .. withCommas(item.Price)
 	else
-		priceLabel.Text = "Price: ???"
+		priceLabel.Text = "$???"
 	end
 	updateStats()
 	updateButton()

@@ -6,7 +6,8 @@
 --   Animals:     ReplicatedStorage.AnimalData (which world each species lives in, rarity, stats)
 --   Templates:   ServerStorage.AnimalTemplates.<Species>  (Models, PrimaryPart = Body / <Species>_Body, front = -Z)
 --   Spawn zones: every Part in Workspace.AnimalSpawnZones (invisible boxes; move/resize them in Studio).
---                Attribute World = which world's animals spawn there (default 1); Population = how many (default 10)
+--                Attribute World = which world's animals spawn there (default 1); Population = most alive at once (default 5)
+--   Decor:       Workspace.Decor (trees, rocks...): animals spawn away from it, walk around it, never stand on it
 --   Live:        Workspace.Animals (Models with attributes Species, Rarity, World, Size, Mutation, Health, MaxHealth,
 --                Hop, Land)
 --
@@ -29,7 +30,7 @@ local AnimalManager = {}
 
 ---------------------------------------------------------------- tuning
 local WAVE_INTERVAL = 300 -- seconds (5 minutes)
-local DEFAULT_POPULATION = 10 -- animals alive per zone after each wave (zone attribute Population overrides)
+local DEFAULT_POPULATION = 5 -- most animals alive per zone (= per world); waves top it back up (zone attribute Population overrides)
 local MAX_AGE_WAVES = 2 -- an animal is replaced after surviving this many waves
 local MIN_SPACING = 7 -- studs between spawned animals
 local ZONE_MARGIN = 3 -- keep animals this far inside a zone's edges
@@ -77,12 +78,30 @@ local function excludeList()
 	return list
 end
 
+-- the floor below (decorations like trees and rocks are ignored, so animals never end up standing on them)
 local function groundAt(x, z, fromY)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = excludeList()
+	local list = excludeList()
+	local decor = workspace:FindFirstChild("Decor")
+	if decor then
+		table.insert(list, decor)
+	end
+	params.FilterDescendantsInstances = list
 	local result = workspace:Raycast(Vector3.new(x, fromY, z), Vector3.new(0, -200, 0), params)
 	return result and result.Position.Y or nil
+end
+
+-- is a decoration (Workspace.Decor) within radius of this spot? (animals don't spawn inside trees)
+local function nearDecor(position, radius)
+	local decor = workspace:FindFirstChild("Decor")
+	if not decor then
+		return false
+	end
+	local params = OverlapParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { decor }
+	return #workspace:GetPartBoundsInRadius(position + Vector3.new(0, 2, 0), radius, params) > 0
 end
 
 -- local-space bounds of a zone part, shrunk by the margin
@@ -103,7 +122,10 @@ local function randomPoint(zone)
 	local world = zone.CFrame:PointToWorldSpace(Vector3.new(rng:NextNumber(-hx, hx), 0, rng:NextNumber(-hz, hz)))
 	local top = zone.Position.Y + zone.Size.Y / 2 + 20
 	local y = groundAt(world.X, world.Z, top)
-	return y and Vector3.new(world.X, y, world.Z) or nil
+	if not y or nearDecor(Vector3.new(world.X, y, world.Z), 4) then
+		return nil
+	end
+	return Vector3.new(world.X, y, world.Z)
 end
 
 local function pickWeighted(list, weightOf)
@@ -217,27 +239,22 @@ local function makeTag(record)
 	list.SortOrder = Enum.SortOrder.LayoutOrder
 	list.Parent = gui
 
-	local function label(name, text, color, order)
+	-- (the rarity is deliberately NOT shown over animals - you find out when you catch them)
+	if record.mutation ~= "None" then
 		local l = Instance.new("TextLabel")
-		l.Name = name
-		l.LayoutOrder = order
-		l.Size = UDim2.new(1, 0, 0, 20)
+		l.Name = "Mutation"
+		l.LayoutOrder = 2
+		l.Size = UDim2.new(1, 0, 0, 24)
 		l.BackgroundTransparency = 1
-		l.Text = text
-		l.Font = Enum.Font.GothamBlack
+		l.Text = string.upper(record.mutation)
+		l.Font = Enum.Font.FredokaOne
 		l.TextScaled = true
-		l.TextColor3 = color
+		l.TextColor3 = MUTATIONS[record.mutation].tint
 		l.Parent = gui
 		local stroke = Instance.new("UIStroke")
-		stroke.Thickness = 2
-		stroke.Color = Color3.fromRGB(20, 20, 24)
+		stroke.Thickness = 2.5
+		stroke.Color = Color3.fromRGB(24, 18, 28)
 		stroke.Parent = l
-	end
-	if record.cfg.rarity ~= "Common" then
-		label("Rarity", string.upper(record.cfg.rarity), AnimalData.Rarities[record.cfg.rarity].color, 1)
-	end
-	if record.mutation ~= "None" then
-		label("Mutation", string.upper(record.mutation), MUTATIONS[record.mutation].tint, 2)
 	end
 
 	local slot = Instance.new("Frame")
@@ -250,14 +267,18 @@ local function makeTag(record)
 	bar.Name = "HealthBar"
 	bar.AnchorPoint = Vector2.new(0.5, 1)
 	bar.Position = UDim2.new(0.5, 0, 1, 0)
-	bar.Size = UDim2.fromOffset(90, 10)
-	bar.BackgroundColor3 = Color3.fromRGB(30, 22, 18)
+	bar.Size = UDim2.fromOffset(92, 12)
+	bar.BackgroundColor3 = Color3.fromRGB(40, 34, 46)
 	bar.BorderSizePixel = 0
 	bar.Visible = false
 	bar.Parent = slot
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(1, 0)
 	corner.Parent = bar
+	local barStroke = Instance.new("UIStroke")
+	barStroke.Thickness = 2.5
+	barStroke.Color = Color3.fromRGB(24, 18, 28)
+	barStroke.Parent = bar
 	local fill = Instance.new("Frame")
 	fill.Name = "Fill"
 	fill.Size = UDim2.fromScale(1, 1)
@@ -267,6 +288,10 @@ local function makeTag(record)
 	local fillCorner = Instance.new("UICorner")
 	fillCorner.CornerRadius = UDim.new(1, 0)
 	fillCorner.Parent = fill
+	local shine = Instance.new("UIGradient")
+	shine.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(190, 190, 190))
+	shine.Rotation = 90
+	shine.Parent = fill
 	record.healthBar = bar
 	record.healthFill = fill
 end

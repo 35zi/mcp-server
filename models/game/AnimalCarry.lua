@@ -74,7 +74,7 @@ local function groundBelow(position)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	local exclude = { bodiesFolder }
-	for _, name in ipairs({ "Animals", "AnimalSpawnZones" }) do
+	for _, name in ipairs({ "Animals", "AnimalSpawnZones", "Decor" }) do
 		local f = workspace:FindFirstChild(name)
 		if f then
 			table.insert(exclude, f)

@@ -1,191 +1,90 @@
 -- AnimalMenuClient (LocalScript in StarterPlayer.StarterPlayerScripts)
 --
--- Two buttons on the left side of the screen:
---   * INDEX  every animal per world with its rarity; the ones you've brought home are unlocked (picture + how many),
+-- Two tiles on the left side of the screen (style: ReplicatedStorage.UIStyle):
+--   * Index  every animal per world with its rarity; the ones you've brought home are unlocked (picture + how many),
 --            the rest are black silhouettes ("???"). Reads player attributes Caught_<Species> (set by AnimalCarry).
---   * BAG    your animals (player.AnimalInventory, InventoryAdapter): Hold it in your hand, Place it on your plot,
+--   * Bag    your animals (player.AnimalInventory, InventoryAdapter): Hold it in your hand, Place it on your plot,
 --            take it back. Asks the server through ReplicatedStorage.AnimalInventoryRemote (InventoryService).
--- Plus a banner while you carry a dead animal ("bring it over the red line"). While a menu is open the ScreenGui
--- attribute Open is true, so WeaponClient puts the gun aside and shows the cursor.
+-- A red "!" badge shows on a tile when something new is in it. Plus a banner while you carry a dead animal
+-- ("bring it over the red line"). While a menu is open the ScreenGui attribute Open is true, so WeaponClient puts the
+-- gun aside and shows the cursor.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 local ContentProvider = game:GetService("ContentProvider")
 
 local player = Players.LocalPlayer
 local AnimalData = require(ReplicatedStorage:WaitForChild("AnimalData"))
+local UIStyle = require(ReplicatedStorage:WaitForChild("UIStyle"))
 local remote = ReplicatedStorage:WaitForChild("AnimalInventoryRemote")
 local previews = ReplicatedStorage:WaitForChild("AnimalPreviews")
 
-local GOLD = Color3.fromRGB(255, 205, 50)
-local DARK = Color3.fromRGB(43, 29, 20)
-local CARD = Color3.fromRGB(62, 44, 32)
-local BLACK = Color3.fromRGB(20, 20, 24)
-local WHITE = Color3.new(1, 1, 1)
-local SOFT = Color3.fromRGB(232, 213, 192)
-local GREEN = Color3.fromRGB(70, 160, 70)
-local BLUE = Color3.fromRGB(60, 120, 200)
-local GREY = Color3.fromRGB(110, 96, 84)
-
-local function make(class, props)
-	local inst = Instance.new(class)
-	local parent = props.Parent
-	props.Parent = nil
-	for k, v in pairs(props) do
-		inst[k] = v
-	end
-	inst.Parent = parent
-	return inst
-end
-
-local function corner(parent, r)
-	make("UICorner", { CornerRadius = UDim.new(0, r or 10), Parent = parent })
-end
+local make, text, C = UIStyle.make, UIStyle.text, UIStyle.Colors
+local WORLD_ICONS = { "🌲", "🌵" }
 
 local gui = make("ScreenGui", { Name = "AnimalMenu", ResetOnSpawn = false, DisplayOrder = 6, Parent = player:WaitForChild("PlayerGui") })
 gui:SetAttribute("Open", false)
 
----------------------------------------------------------------- side buttons
+---------------------------------------------------------------- side tiles
 local side = make("Frame", {
 	AnchorPoint = Vector2.new(0, 0.5),
-	Position = UDim2.new(0, 16, 0.5, 0),
-	Size = UDim2.fromOffset(72, 160),
+	Position = UDim2.new(0, 18, 0.5, 0),
+	Size = UDim2.fromOffset(70, 160),
 	BackgroundTransparency = 1,
 	Parent = gui,
 })
-make("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = side })
+make("UIListLayout", { Padding = UDim.new(0, 14), SortOrder = Enum.SortOrder.LayoutOrder, Parent = side })
+local indexTile, indexBadge = UIStyle.tile({ Icon = "📖", Label = "Index", LayoutOrder = 1, Parent = side })
+local bagTile, bagBadge = UIStyle.tile({ Icon = "🎒", Label = "Bag", LayoutOrder = 2, Parent = side })
 
-local function sideButton(icon, caption, order)
-	local b = make("TextButton", {
-		LayoutOrder = order,
-		Size = UDim2.fromOffset(72, 72),
-		BackgroundColor3 = DARK,
-		BackgroundTransparency = 0.1,
-		Text = "",
-		AutoButtonColor = true,
-		Parent = side,
-	})
-	corner(b, 14)
-	make("UIStroke", { Color = GOLD, Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = b })
-	make("TextLabel", { Size = UDim2.new(1, 0, 0, 44), Position = UDim2.fromOffset(0, 4), BackgroundTransparency = 1, Text = icon, TextSize = 30, Font = Enum.Font.GothamBlack, TextColor3 = WHITE, Parent = b })
-	make("TextLabel", { Size = UDim2.new(1, 0, 0, 18), Position = UDim2.fromOffset(0, 48), BackgroundTransparency = 1, Text = caption, TextSize = 14, Font = Enum.Font.GothamBlack, TextColor3 = GOLD, Parent = b })
-	return b
-end
-local indexButton = sideButton("📖", "INDEX", 1)
-local bagButton = sideButton("🎒", "BAG", 2)
-
----------------------------------------------------------------- panel frame
-local panel = make("Frame", {
-	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.fromScale(0.5, 0.5),
-	Size = UDim2.fromOffset(620, 440),
-	BackgroundColor3 = DARK,
-	Visible = false,
-	Active = true,
-	Parent = gui,
-})
-corner(panel, 18)
-make("UIStroke", { Color = GOLD, Thickness = 3, Parent = panel })
-local panelScale = make("UIScale", { Parent = panel })
-local function fitPanel()
+---------------------------------------------------------------- windows
+local function fitScale()
 	local camera = workspace.CurrentCamera
 	local vp = camera and camera.ViewportSize or Vector2.new(1280, 720)
-	panelScale.Scale = math.min(1, (vp.X - 120) / 640, (vp.Y - 40) / 460)
+	return math.min(1, (vp.X - 140) / 680, (vp.Y - 40) / 500)
 end
-fitPanel()
-workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fitPanel)
 
-local title = make("TextLabel", {
-	Position = UDim2.fromOffset(22, 12),
-	Size = UDim2.new(1, -90, 0, 34),
-	BackgroundTransparency = 1,
-	Text = "",
-	Font = Enum.Font.GothamBlack,
-	TextSize = 30,
-	TextXAlignment = Enum.TextXAlignment.Left,
-	TextColor3 = GOLD,
-	Parent = panel,
-})
-make("UIStroke", { Color = BLACK, Thickness = 2, Parent = title })
-local subtitle = make("TextLabel", {
-	AnchorPoint = Vector2.new(1, 0),
-	Position = UDim2.new(1, -70, 0, 20),
-	Size = UDim2.fromOffset(260, 24),
-	BackgroundTransparency = 1,
-	Text = "",
-	Font = Enum.Font.GothamBold,
-	TextSize = 16,
-	TextXAlignment = Enum.TextXAlignment.Right,
-	TextColor3 = SOFT,
-	Parent = panel,
-})
-local closeButton = make("TextButton", {
-	AnchorPoint = Vector2.new(1, 0),
-	Position = UDim2.new(1, -14, 0, 12),
-	Size = UDim2.fromOffset(40, 40),
-	BackgroundColor3 = Color3.fromRGB(190, 60, 50),
-	Text = "X",
-	Font = Enum.Font.GothamBlack,
-	TextSize = 22,
-	TextColor3 = WHITE,
-	Parent = panel,
-})
-corner(closeButton, 10)
-local status = make("TextLabel", {
-	AnchorPoint = Vector2.new(0.5, 1),
-	Position = UDim2.new(0.5, 0, 1, -8),
-	Size = UDim2.new(1, -40, 0, 20),
-	BackgroundTransparency = 1,
-	Text = "",
-	Font = Enum.Font.GothamBold,
-	TextSize = 15,
-	TextColor3 = SOFT,
-	Parent = panel,
-})
-
-local indexPage = make("Frame", { Position = UDim2.fromOffset(0, 58), Size = UDim2.new(1, 0, 1, -86), BackgroundTransparency = 1, Visible = false, Parent = panel })
-local bagPage = make("Frame", { Position = UDim2.fromOffset(0, 58), Size = UDim2.new(1, 0, 1, -86), BackgroundTransparency = 1, Visible = false, Parent = panel })
-
----------------------------------------------------------------- animal pictures
-local function fillViewport(vp, species)
-	vp:ClearAllChildren()
-	local source = previews:FindFirstChild(species)
-	if not source then
-		return
+local indexWindow, indexBody, indexClose = UIStyle.window({ Name = "Index", Title = "Index", Icon = "📖", Size = UDim2.fromOffset(660, 480), Visible = false, Parent = gui })
+local bagWindow, bagBody, bagClose = UIStyle.window({ Name = "Bag", Title = "Bag", Icon = "🎒", Size = UDim2.fromOffset(660, 480), Visible = false, Parent = gui })
+for _, w in ipairs({ indexWindow, bagWindow }) do
+	make("UIScale", { Name = "PopScale", Scale = fitScale(), Parent = w })
+end
+workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+	for _, w in ipairs({ indexWindow, bagWindow }) do
+		w.PopScale.Scale = fitScale()
 	end
-	local model = source:Clone()
-	model.Parent = vp
-	local cf, size = model:GetBoundingBox()
-	local camera = Instance.new("Camera")
-	camera.FieldOfView = 30
-	camera.Parent = vp
-	vp.CurrentCamera = camera
-	local primary = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
-	local front = primary.CFrame.LookVector
-	local right = primary.CFrame.RightVector
-	local dir = (Vector3.new(front.X, 0, front.Z).Unit * 0.85 - right * 0.55 + Vector3.new(0, 0.38, 0)).Unit
-	local dist = (size.Magnitude / 2) / math.tan(math.rad(camera.FieldOfView / 2)) * 1.02
-	camera.CFrame = CFrame.lookAt(cf.Position + dir * dist, cf.Position)
-end
+end)
 
-local function viewport(parent, props)
-	local vp = make("ViewportFrame", props)
-	vp.BackgroundTransparency = 1
-	vp.Ambient = Color3.fromRGB(165, 160, 150)
-	vp.LightColor = Color3.fromRGB(255, 250, 240)
-	vp.LightDirection = Vector3.new(-1, -1.4, -0.8)
-	vp.Parent = parent
-	return vp
+local function statusLine(body)
+	return text({
+		Name = "Status",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, 0),
+		Size = UDim2.new(1, 0, 0, 24),
+		Text = "",
+		TextSize = 18,
+		Parent = body,
+	})
 end
+local indexStatus = statusLine(indexBody)
+local bagStatus = statusLine(bagBody)
 
----------------------------------------------------------------- INDEX page
+---------------------------------------------------------------- INDEX
 local currentWorld = 1
-local tabs = make("Frame", { Position = UDim2.fromOffset(20, 0), Size = UDim2.new(1, -40, 0, 36), BackgroundTransparency = 1, Parent = indexPage })
-make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 10), Parent = tabs })
-local tabButtons = {}
-local grid = make("Frame", { Position = UDim2.fromOffset(20, 48), Size = UDim2.new(1, -40, 1, -48), BackgroundTransparency = 1, Parent = indexPage })
+local tabs = {}
+local tabRow = make("Frame", { Size = UDim2.new(1, 0, 0, 48), BackgroundTransparency = 1, Parent = indexBody })
+make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = tabRow })
+local unlockedLabel = text({
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, 0, 0, 6),
+	Size = UDim2.fromOffset(170, 34),
+	Text = "",
+	TextSize = 22,
+	TextXAlignment = Enum.TextXAlignment.Right,
+	Parent = indexBody,
+})
+local grid = make("Frame", { Position = UDim2.fromOffset(0, 62), Size = UDim2.new(1, 0, 1, -90), BackgroundTransparency = 1, Parent = indexBody })
 make("UIGridLayout", {
-	CellSize = UDim2.fromOffset(136, 290),
+	CellSize = UDim2.fromOffset(142, 290),
 	CellPadding = UDim2.fromOffset(12, 12),
 	SortOrder = Enum.SortOrder.LayoutOrder,
 	HorizontalAlignment = Enum.HorizontalAlignment.Center,
@@ -206,108 +105,90 @@ local function renderIndex()
 			end
 		end
 	end
-	subtitle.Text = string.format("Unlocked %d / %d", unlocked, total)
-	for id, b in pairs(tabButtons) do
-		b.BackgroundColor3 = id == currentWorld and GOLD or CARD
-		b.TextColor3 = id == currentWorld and DARK or SOFT
+	unlockedLabel.Text = string.format("Unlocked %d/%d", unlocked, total)
+	for id, b in pairs(tabs) do
+		UIStyle.setButton(b, nil, id == currentWorld and C.Green or C.Grey)
 	end
 	for _, c in ipairs(grid:GetChildren()) do
 		if c:IsA("GuiObject") then
 			c:Destroy()
 		end
 	end
-	local world = AnimalData.Worlds[currentWorld]
-	for i, species in ipairs(world.species) do
+	for i, species in ipairs(AnimalData.Worlds[currentWorld].species) do
 		local info = AnimalData.Species[species]
 		local rarity = AnimalData.Rarities[info.rarity]
 		local count = caughtCount(species)
 		local known = count > 0
-		local card = make("Frame", { LayoutOrder = i, BackgroundColor3 = CARD, Parent = grid })
-		corner(card, 12)
-		make("UIStroke", { Color = rarity.color, Thickness = 2, Transparency = known and 0 or 0.5, Parent = card })
-		local vp = viewport(card, { Position = UDim2.fromOffset(6, 8), Size = UDim2.new(1, -12, 0, 150) })
-		fillViewport(vp, species)
+		local card = make("Frame", { LayoutOrder = i, BackgroundColor3 = Color3.new(1, 1, 1), Parent = grid })
+		UIStyle.corner(card, 14)
+		UIStyle.stroke(card, 3)
+		UIStyle.gradient(card, UIStyle.rarityGradient(info.rarity), info.rarity == "Legendary" and 45 or 90)
+		local vp = UIStyle.picture({ Position = UDim2.fromOffset(8, 8), Size = UDim2.new(1, -16, 0, 140), Parent = card })
+		UIStyle.showModel(vp, previews:FindFirstChild(species))
 		if not known then
 			vp.ImageColor3 = Color3.new(0, 0, 0)
-			vp.ImageTransparency = 0.15
+			vp.ImageTransparency = 0.1
 		end
-		make("TextLabel", {
-			Position = UDim2.fromOffset(4, 164),
-			Size = UDim2.new(1, -8, 0, 28),
-			BackgroundTransparency = 1,
-			Text = known and species or "???",
-			Font = Enum.Font.GothamBlack,
-			TextSize = 22,
-			TextColor3 = WHITE,
-			Parent = card,
-		})
-		make("TextLabel", {
-			Position = UDim2.fromOffset(4, 194),
-			Size = UDim2.new(1, -8, 0, 20),
-			BackgroundTransparency = 1,
+		text({ Position = UDim2.fromOffset(4, 154), Size = UDim2.new(1, -8, 0, 32), Text = known and species or "???", TextSize = 26, Parent = card })
+		UIStyle.pill({
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.new(0.5, 0, 0, 192),
+			Size = UDim2.fromOffset(118, 26),
 			Text = string.upper(info.rarity),
-			Font = Enum.Font.GothamBlack,
 			TextSize = 16,
-			TextColor3 = rarity.color,
+			Color = UIStyle.darker(rarity.color, 0.15),
 			Parent = card,
 		})
-		make("TextLabel", {
-			Position = UDim2.fromOffset(4, 222),
-			Size = UDim2.new(1, -8, 0, 40),
-			BackgroundTransparency = 1,
+		text({
+			Position = UDim2.fromOffset(4, 228),
+			Size = UDim2.new(1, -8, 0, 48),
 			Text = known and string.format("Caught: %d", count) or "Not caught yet",
 			TextWrapped = true,
-			Font = Enum.Font.GothamBold,
-			TextSize = 15,
-			TextColor3 = known and SOFT or GREY,
+			TextSize = 19,
+			TextColor3 = known and C.White or Color3.fromRGB(225, 225, 230),
 			Parent = card,
 		})
 	end
 end
 
 for _, world in ipairs(AnimalData.Worlds) do
-	local b = make("TextButton", {
-		Size = UDim2.fromOffset(190, 36),
-		BackgroundColor3 = CARD,
-		Text = string.format("World %d · %s", world.id, world.name),
-		Font = Enum.Font.GothamBlack,
-		TextSize = 16,
-		TextColor3 = SOFT,
-		Parent = tabs,
+	local b = UIStyle.button({
+		Size = UDim2.fromOffset(210, 46),
+		LayoutOrder = world.id,
+		Text = string.format("%s World %d · %s", WORLD_ICONS[world.id] or "", world.id, world.name),
+		TextSize = 19,
+		Color = C.Grey,
+		Parent = tabRow,
 	})
-	corner(b, 10)
 	b.Activated:Connect(function()
 		currentWorld = world.id
 		renderIndex()
 	end)
-	tabButtons[world.id] = b
+	tabs[world.id] = b
 end
 
----------------------------------------------------------------- BAG page
+---------------------------------------------------------------- BAG
 local list = make("ScrollingFrame", {
-	Position = UDim2.fromOffset(16, 0),
-	Size = UDim2.new(1, -32, 1, 0),
+	Size = UDim2.new(1, 0, 1, -30),
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
-	ScrollBarThickness = 6,
-	ScrollBarImageColor3 = GOLD,
+	ScrollBarThickness = 8,
+	ScrollBarImageColor3 = UIStyle.Outline,
 	AutomaticCanvasSize = Enum.AutomaticSize.Y,
 	CanvasSize = UDim2.new(),
-	Parent = bagPage,
+	Parent = bagBody,
 })
-make("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = list })
-local emptyLabel = make("TextLabel", {
+make("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, Parent = list })
+make("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 12), Parent = list })
+local emptyLabel = text({
 	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.fromScale(0.5, 0.45),
-	Size = UDim2.new(1, -80, 0, 90),
-	BackgroundTransparency = 1,
-	Text = "Your bag is empty.\nShoot an animal, pick it up (E) and carry it over the red line!",
+	Position = UDim2.fromScale(0.5, 0.42),
+	Size = UDim2.new(1, -60, 0, 120),
+	Text = "Your bag is empty!\nShoot an animal, pick it up (E)\nand carry it over the red line.",
 	TextWrapped = true,
-	Font = Enum.Font.GothamBold,
-	TextSize = 18,
-	TextColor3 = SOFT,
+	TextSize = 26,
 	Visible = false,
-	Parent = bagPage,
+	Parent = bagBody,
 })
 
 local inventory = player:WaitForChild("AnimalInventory", 5)
@@ -323,30 +204,13 @@ local function ask(action, id)
 		return
 	end
 	busy = true
-	status.Text = "..."
+	bagStatus.Text = "..."
 	local ok, success, message = pcall(function()
 		return remote:InvokeServer(action, id)
 	end)
 	busy = false
-	status.Text = ok and tostring(message or "") or "Try again"
-	status.TextColor3 = (ok and success) and SOFT or Color3.fromRGB(255, 120, 100)
-end
-
-local function actionButton(parent, text, color, x, onClick)
-	local b = make("TextButton", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, x, 0.5, 0),
-		Size = UDim2.fromOffset(126, 36),
-		BackgroundColor3 = color,
-		Text = text,
-		Font = Enum.Font.GothamBlack,
-		TextSize = 15,
-		TextColor3 = WHITE,
-		Parent = parent,
-	})
-	corner(b, 9)
-	b.Activated:Connect(onClick)
-	return b
+	bagStatus.Text = ok and tostring(message or "") or "Try again"
+	bagStatus.TextColor3 = (ok and success) and C.White or Color3.fromRGB(255, 120, 100)
 end
 
 local function renderBag()
@@ -363,51 +227,57 @@ local function renderBag()
 		end
 		return (a:GetAttribute("Id") or 0) > (b:GetAttribute("Id") or 0)
 	end)
-	subtitle.Text = string.format("%d animal%s", #items, #items == 1 and "" or "s")
 	emptyLabel.Visible = #items == 0
 	for i, item in ipairs(items) do
 		local a = item:GetAttributes()
-		local rarity = AnimalData.Rarities[a.Rarity] or AnimalData.Rarities.Common
-		local row = make("Frame", { LayoutOrder = i, Size = UDim2.new(1, -10, 0, 68), BackgroundColor3 = CARD, Parent = list })
-		corner(row, 12)
-		make("UIStroke", { Color = rarity.color, Thickness = 1.5, Transparency = 0.3, Parent = row })
-		local vp = viewport(row, { Position = UDim2.fromOffset(6, 4), Size = UDim2.fromOffset(60, 60) })
-		fillViewport(vp, a.Species)
-		make("TextLabel", {
-			Position = UDim2.fromOffset(74, 10),
-			Size = UDim2.new(1, -350, 0, 24),
-			BackgroundTransparency = 1,
+		local row = make("Frame", { LayoutOrder = i, Size = UDim2.new(1, 0, 0, 80), BackgroundColor3 = Color3.new(1, 1, 1), Parent = list })
+		UIStyle.corner(row, 14)
+		UIStyle.stroke(row, 3)
+		UIStyle.gradient(row, UIStyle.rarityGradient(a.Rarity), a.Rarity == "Legendary" and 0 or 90)
+		local vp = UIStyle.picture({ Position = UDim2.fromOffset(8, 7), Size = UDim2.fromOffset(66, 66), Parent = row })
+		UIStyle.showModel(vp, previews:FindFirstChild(a.Species))
+		text({
+			Position = UDim2.fromOffset(86, 8),
+			Size = UDim2.new(1, -370, 0, 32),
 			Text = AnimalData.DisplayName(a.Species, a.Size, a.Mutation),
 			TextTruncate = Enum.TextTruncate.AtEnd,
-			Font = Enum.Font.GothamBlack,
-			TextSize = 19,
+			TextSize = 24,
 			TextXAlignment = Enum.TextXAlignment.Left,
-			TextColor3 = WHITE,
 			Parent = row,
 		})
-		make("TextLabel", {
-			Position = UDim2.fromOffset(74, 36),
-			Size = UDim2.new(1, -350, 0, 20),
-			BackgroundTransparency = 1,
-			RichText = true,
-			Text = string.format('<font color="#%s">%s</font>  •  %s', rarity.color:ToHex(), string.upper(a.Rarity or "Common"), STATE_TEXT[a.State] or ""),
-			Font = Enum.Font.GothamBold,
-			TextSize = 14,
+		text({
+			Position = UDim2.fromOffset(86, 42),
+			Size = UDim2.new(1, -370, 0, 24),
+			Text = string.format("%s  •  %s", string.upper(a.Rarity or "Common"), STATE_TEXT[a.State] or ""),
+			TextSize = 17,
 			TextXAlignment = Enum.TextXAlignment.Left,
-			TextColor3 = SOFT,
 			Parent = row,
 		})
 		local id = a.Id
-		if a.State == "Plot" then
-			actionButton(row, "Take back", GREY, -10, function()
-				ask("Bag", id)
-			end)
-		else
-			actionButton(row, "Place in plot", GREEN, -10, function()
-				ask("Plot", id)
-			end)
-		end
-		actionButton(row, a.State == "Held" and "Put away" or "Hold", a.State == "Held" and GREY or BLUE, -144, function()
+		local onPlot = a.State == "Plot"
+		local place = UIStyle.button({
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -12, 0.5, 0),
+			Size = UDim2.fromOffset(136, 48),
+			Text = onPlot and "Take back" or "Place",
+			TextSize = 21,
+			Color = onPlot and C.Orange or C.Green,
+			Parent = row,
+		})
+		place.Activated:Connect(function()
+			ask(onPlot and "Bag" or "Plot", id)
+		end)
+		local held = a.State == "Held"
+		local hold = UIStyle.button({
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -158, 0.5, 0),
+			Size = UDim2.fromOffset(118, 48),
+			Text = held and "Put away" or "Hold",
+			TextSize = 21,
+			Color = held and C.Grey or C.Blue,
+			Parent = row,
+		})
+		hold.Activated:Connect(function()
 			ask("Hold", id)
 		end)
 	end
@@ -418,33 +288,31 @@ local openPage = nil
 local refresh -- forward (live updates below)
 local function setOpen(page)
 	openPage = page
-	panel.Visible = page ~= nil
+	indexWindow.Visible = page == "index"
+	bagWindow.Visible = page == "bag"
 	gui:SetAttribute("Open", page ~= nil)
-	indexPage.Visible = page == "index"
-	bagPage.Visible = page == "bag"
-	status.Text = ""
+	indexStatus.Text, bagStatus.Text = "", ""
 	if page == "index" then
-		title.Text = "INDEX"
+		indexBadge.Visible = false
 		renderIndex()
+		UIStyle.pop(indexWindow, fitScale())
 	elseif page == "bag" then
-		title.Text = "INVENTORY"
+		bagBadge.Visible = false
 		renderBag()
-	end
-	if page then
-		fitPanel()
-		local target = panelScale.Scale
-		panelScale.Scale = target * 0.9
-		TweenService:Create(panelScale, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = target }):Play()
+		UIStyle.pop(bagWindow, fitScale())
 	end
 end
 
-indexButton.Activated:Connect(function()
+indexTile.Activated:Connect(function()
 	setOpen(openPage ~= "index" and "index" or nil)
 end)
-bagButton.Activated:Connect(function()
+bagTile.Activated:Connect(function()
 	setOpen(openPage ~= "bag" and "bag" or nil)
 end)
-closeButton.Activated:Connect(function()
+indexClose.Activated:Connect(function()
+	setOpen(nil)
+end)
+bagClose.Activated:Connect(function()
 	setOpen(nil)
 end)
 
@@ -466,6 +334,9 @@ function refresh()
 end
 player.AttributeChanged:Connect(function(name)
 	if name:sub(1, 7) == "Caught_" then
+		if openPage ~= "index" and player:GetAttribute(name) == 1 then
+			indexBadge.Visible = true -- a new animal unlocked
+		end
 		refresh()
 	end
 end)
@@ -473,6 +344,9 @@ local function watchInventory(folder)
 	inventory = folder
 	folder.ChildAdded:Connect(function(item)
 		item.AttributeChanged:Connect(refresh)
+		if openPage ~= "bag" then
+			bagBadge.Visible = true
+		end
 		refresh()
 	end)
 	folder.ChildRemoved:Connect(refresh)
@@ -481,6 +355,7 @@ local function watchInventory(folder)
 	end
 	refresh()
 end
+
 -- meshes in ReplicatedStorage aren't downloaded until something asks: load the pictures' meshes up front
 task.spawn(function()
 	ContentProvider:PreloadAsync({ previews })
@@ -498,26 +373,27 @@ else
 end
 
 ---------------------------------------------------------------- carrying banner
-local carryBanner = make("TextLabel", {
+local carryBanner = make("Frame", {
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 10),
-	Size = UDim2.fromOffset(560, 46),
-	BackgroundColor3 = DARK,
-	BackgroundTransparency = 0.15,
-	Text = "",
-	Font = Enum.Font.GothamBlack,
-	TextSize = 20,
-	TextColor3 = WHITE,
+	Position = UDim2.new(0.5, 0, 0, 12),
+	Size = UDim2.fromOffset(640, 54),
+	BackgroundColor3 = Color3.new(1, 1, 1),
 	Visible = false,
 	Parent = gui,
 })
-corner(carryBanner, 12)
-make("UIStroke", { Color = Color3.fromRGB(255, 70, 60), Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = carryBanner })
+UIStyle.corner(carryBanner, 14)
+UIStyle.stroke(carryBanner, 3)
+UIStyle.gradient(carryBanner, ColorSequence.new(Color3.fromRGB(255, 104, 40), Color3.fromRGB(255, 196, 56)), 0)
+local carryText = text({ Size = UDim2.fromScale(1, 1), Text = "", TextSize = 24, Parent = carryBanner })
 local function updateCarry()
 	local carrying = player:GetAttribute("Carrying")
-	carryBanner.Visible = carrying ~= nil
+	local show = carrying ~= nil
+	if show and not carryBanner.Visible then
+		UIStyle.pop(carryBanner)
+	end
+	carryBanner.Visible = show
 	if carrying then
-		carryBanner.Text = string.format("Carrying %s - bring it over the RED LINE!", string.upper(carrying))
+		carryText.Text = string.format("🐾 Carrying %s  →  take it over the RED LINE!", carrying)
 	end
 end
 player:GetAttributeChangedSignal("Carrying"):Connect(updateCarry)

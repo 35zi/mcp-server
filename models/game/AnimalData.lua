@@ -11,7 +11,7 @@
 local AnimalData = {}
 
 AnimalData.Worlds = {
-	{ id = 1, name = "Meadow", species = { "Bunny", "Frog", "Hedgehog", "Fox" } },
+	{ id = 1, name = "Forest", species = { "Bunny", "Frog", "Hedgehog", "Fox" } },
 	{ id = 2, name = "Desert", species = { "Spider", "Turkey", "Scorpion", "Camel" } },
 }
 
@@ -24,7 +24,7 @@ AnimalData.Rarities = {
 }
 
 AnimalData.Species = {
-	-- World 1: Meadow
+	-- World 1: Forest
 	Bunny = { world = 1, rarity = "Common", hp = 10, value = 10, hopHeight = 2.2, hopDist = 4.5, hopTime = 0.5 },
 	Frog = { world = 1, rarity = "Uncommon", hp = 12, value = 25, hopHeight = 2.6, hopDist = 5.5, hopTime = 0.55 },
 	Hedgehog = { world = 1, rarity = "Rare", hp = 20, value = 60, hopHeight = 0.6, hopDist = 2.0, hopTime = 0.35 },

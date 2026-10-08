@@ -99,7 +99,7 @@ end
 
 ---------------------------------------------------------------- spawn zones (one per world)
 -- World 1 = the green floor past the red line (z -190 .. -86), World 2 = the gold/desert floor after it
--- (z -347 .. -190); both 110 wide between the side walls. Population = animals alive in that zone after each wave.
+-- (z -347 .. -190); both 110 wide between the side walls. Population = most animals alive there at once (topped up every 5-minute wave).
 local ZONES = {
 	{ "Zone1", 1, CFrame.new(1, 7, -139), Vector3.new(104, 10, 98) },
 	{ "Zone2", 2, CFrame.new(1, 7, -269), Vector3.new(104, 10, 152) },
@@ -117,7 +117,7 @@ for _, z in ipairs(ZONES) do
 	zone.Size = z[4]
 	zone.CFrame = z[3]
 	zone:SetAttribute("World", z[2])
-	zone:SetAttribute("Population", zone:GetAttribute("Population") or 10)
+	zone:SetAttribute("Population", 5)
 	zone.Parent = zones
 end
 table.insert(out, "AnimalSpawnZones: " .. #zones:GetChildren() .. " zone(s)")

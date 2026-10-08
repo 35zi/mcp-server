@@ -244,8 +244,7 @@ local function placeOnPlot(player, item)
 	model:SetAttribute("OwnerUserId", player.UserId)
 	model:SetAttribute("EntryId", item:GetAttribute("Id"))
 
-	-- name tag in the animal's rarity colour
-	local rarity = AnimalData.Rarities[item:GetAttribute("Rarity")] or AnimalData.Rarities.Common
+	-- name tag (UIStyle look: chunky white text, dark outline)
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "PlotTag"
 	gui.Size = UDim2.fromOffset(160, 24)
@@ -257,13 +256,13 @@ local function placeOnPlot(player, item)
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
 	label.Text = nameOf(item)
-	label.Font = Enum.Font.GothamBlack
+	label.Font = Enum.Font.FredokaOne
 	label.TextScaled = true
-	label.TextColor3 = rarity.color
+	label.TextColor3 = Color3.new(1, 1, 1)
 	label.Parent = gui
 	local stroke = Instance.new("UIStroke")
-	stroke.Thickness = 2
-	stroke.Color = Color3.fromRGB(20, 20, 24)
+	stroke.Thickness = 2.5
+	stroke.Color = Color3.fromRGB(24, 18, 28)
 	stroke.Parent = label
 	gui.Parent = model.PrimaryPart
 

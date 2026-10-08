@@ -8,24 +8,27 @@
 --     red line (AnimalCarry)
 --   * pick-up prompts on dead animals and plot animals only show for their owner
 --   * a banner for everyone when a Legendary or a Gold / Silver animal appears
---   * a small HUD: animals in your bag + time until the next wave
-local AnimalData = require(game:GetService("ReplicatedStorage"):WaitForChild("AnimalData"))
+--   * a small HUD (bottom left): animals in your bag + time until the next wave
+-- Look: ReplicatedStorage.UIStyle.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 
+local AnimalData = require(ReplicatedStorage:WaitForChild("AnimalData"))
+local UIStyle = require(ReplicatedStorage:WaitForChild("UIStyle"))
+local make, text = UIStyle.make, UIStyle.text
+
 local player = Players.LocalPlayer
 local animalEvent = ReplicatedStorage:WaitForChild("AnimalEvent")
 local audio = ReplicatedStorage:WaitForChild("GameAudio")
 local animalsFolder = workspace:WaitForChild("Animals")
+local previews = ReplicatedStorage:WaitForChild("AnimalPreviews", 10)
 local rng = Random.new()
 
 local GOLD = Color3.fromRGB(255, 205, 50)
 local SILVER = Color3.fromRGB(205, 215, 230)
-local DARK = Color3.fromRGB(43, 29, 20)
-local BLACK = Color3.fromRGB(20, 20, 24)
 local WHITE = Color3.new(1, 1, 1)
 
 ---------------------------------------------------------------- sounds
@@ -160,83 +163,70 @@ for _, model in ipairs(animalsFolder:GetChildren()) do
 	watchAnimal(model)
 end
 
----------------------------------------------------------------- HUD: bag counter, wave timer, banners, popup
-local function make(class, props)
-	local inst = Instance.new(class)
-	local parent = props.Parent
-	props.Parent = nil
-	for k, v in pairs(props) do
-		inst[k] = v
-	end
-	inst.Parent = parent
-	return inst
-end
-
+---------------------------------------------------------------- HUD: animals in your bag + wave timer (bottom left), banners, popup
 local gui = make("ScreenGui", { Name = "AnimalHud", ResetOnSpawn = false, DisplayOrder = 4, Parent = player:WaitForChild("PlayerGui") })
-local bag = make("Frame", {
+local hud = make("Frame", {
 	Name = "Bag",
-	Position = UDim2.new(0, 16, 0, 64),
-	Size = UDim2.fromOffset(190, 64),
-	BackgroundColor3 = DARK,
-	BackgroundTransparency = 0.15,
+	AnchorPoint = Vector2.new(0, 1),
+	Position = UDim2.new(0, 18, 1, -16),
+	Size = UDim2.fromOffset(320, 76),
+	BackgroundTransparency = 1,
 	Parent = gui,
 })
-make("UICorner", { CornerRadius = UDim.new(0, 12), Parent = bag })
-make("UIStroke", { Color = GOLD, Thickness = 2, Parent = bag })
-local bagCount = make("TextLabel", {
-	Position = UDim2.fromOffset(12, 6),
-	Size = UDim2.new(1, -24, 0, 28),
-	BackgroundTransparency = 1,
-	Text = "Animals: 0",
-	Font = Enum.Font.GothamBlack,
-	TextSize = 22,
-	TextXAlignment = Enum.TextXAlignment.Left,
-	TextColor3 = WHITE,
-	Parent = bag,
-})
-local waveLabel = make("TextLabel", {
-	Position = UDim2.fromOffset(12, 34),
-	Size = UDim2.new(1, -24, 0, 22),
-	BackgroundTransparency = 1,
+local waveLabel = text({
+	Size = UDim2.new(1, 0, 0, 28),
 	Text = "",
-	Font = Enum.Font.GothamBold,
-	TextSize = 15,
+	TextSize = 21,
 	TextXAlignment = Enum.TextXAlignment.Left,
-	TextColor3 = Color3.fromRGB(232, 213, 192),
-	Parent = bag,
+	Parent = hud,
+})
+local bagCount = text({
+	Position = UDim2.fromOffset(0, 28),
+	Size = UDim2.new(1, 0, 0, 46),
+	Text = "",
+	TextSize = 38,
+	Stroke = 3.5,
+	TextColor3 = UIStyle.Colors.Money,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Parent = hud,
 })
 local function updateBag()
-	bagCount.Text = "Animals: " .. tostring(player:GetAttribute("AnimalCount") or 0)
+	local count = player:GetAttribute("AnimalCount") or 0
+	bagCount.Text = string.format("🐾 %d %s", count, count == 1 and "Animal" or "Animals")
 end
-player:GetAttributeChangedSignal("AnimalCount"):Connect(updateBag)
+player:GetAttributeChangedSignal("AnimalCount"):Connect(function()
+	updateBag()
+	UIStyle.pop(bagCount)
+end)
 updateBag()
 task.spawn(function()
 	while true do
 		local nextAt = animalsFolder:GetAttribute("NextWaveAt")
 		if nextAt then
 			local left = math.max(0, nextAt - os.time())
-			waveLabel.Text = string.format("New animals in %d:%02d", left // 60, left % 60)
+			waveLabel.Text = string.format("⏰ New animals in %d:%02d", left // 60, left % 60)
 		end
 		task.wait(0.5)
 	end
 end)
 
-local function banner(text, color, duration)
-	local label = make("TextLabel", {
+local function banner(message, color, duration)
+	local label = text({
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, -60),
-		Size = UDim2.fromOffset(640, 48),
-		BackgroundTransparency = 1,
-		Text = text,
-		Font = Enum.Font.GothamBlack,
-		TextSize = 34,
+		Position = UDim2.new(0.5, 0, 0, -70),
+		Size = UDim2.fromOffset(980, 54),
+		Text = message,
+		TextSize = 40,
+		Stroke = 4,
 		TextColor3 = color,
 		Parent = gui,
 	})
-	make("UIStroke", { Color = BLACK, Thickness = 3, Parent = label })
-	TweenService:Create(label, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.new(0.5, 0, 0, 96) }):Play()
+	local stroke = label:FindFirstChildOfClass("UIStroke")
+	TweenService:Create(label, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.new(0.5, 0, 0, 84) }):Play()
 	task.delay(duration or 3.5, function()
-		local fade = TweenService:Create(label, TweenInfo.new(0.5), { TextTransparency = 1 })
+		local info = TweenInfo.new(0.5)
+		TweenService:Create(label, info, { TextTransparency = 1 }):Play()
+		local fade = TweenService:Create(stroke, info, { Transparency = 1 })
 		fade:Play()
 		fade.Completed:Wait()
 		label:Destroy()
@@ -251,53 +241,60 @@ local function caughtPopup(data)
 	if old then
 		old:Destroy()
 	end
-	local rarity = AnimalData.Rarities[data.rarity] or AnimalData.Rarities.Common
-	local mutationColor = data.mutation == "Gold" and GOLD or data.mutation == "Silver" and SILVER or rarity.color
+	local rarity = data.rarity or "Common"
+	local nameColor = data.mutation == "Gold" and GOLD or data.mutation == "Silver" and SILVER or WHITE
 	local frame = make("Frame", {
 		Name = "Caught",
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.3),
-		Size = UDim2.fromOffset(500, 116),
-		BackgroundColor3 = DARK,
+		Position = UDim2.fromScale(0.5, 0.32),
+		Size = UDim2.fromOffset(500, 156),
+		BackgroundColor3 = WHITE,
 		Parent = gui,
 	})
-	make("UICorner", { CornerRadius = UDim.new(0, 16), Parent = frame })
-	make("UIStroke", { Color = mutationColor == WHITE and GOLD or mutationColor, Thickness = 3, Parent = frame })
-	local scale = make("UIScale", { Scale = 0.6, Parent = frame })
-	local title = make("TextLabel", {
-		Position = UDim2.fromOffset(0, 8),
-		Size = UDim2.new(1, 0, 0, 40),
-		BackgroundTransparency = 1,
+	UIStyle.corner(frame, 18)
+	UIStyle.stroke(frame, 4)
+	UIStyle.gradient(frame, UIStyle.rarityGradient(rarity), rarity == "Legendary" and 0 or 90)
+	local vp = UIStyle.picture({ Position = UDim2.fromOffset(14, 14), Size = UDim2.fromOffset(126, 126), Parent = frame })
+	UIStyle.showModel(vp, previews and previews:FindFirstChild(data.species))
+	text({
+		Position = UDim2.fromOffset(154, 4),
+		Size = UDim2.new(1, -164, 0, 60),
 		Text = "CAUGHT!",
-		Font = Enum.Font.GothamBlack,
-		TextSize = 34,
-		TextColor3 = GOLD,
+		TextSize = 52,
+		Stroke = 4.5,
+		Rotation = -3,
+		TextColor3 = UIStyle.Colors.Yellow,
 		Parent = frame,
 	})
-	make("UIStroke", { Color = BLACK, Thickness = 2, Parent = title })
-	local name = AnimalData.DisplayName(data.species, data.size, data.mutation)
-	make("TextLabel", {
-		Position = UDim2.fromOffset(0, 48),
-		Size = UDim2.new(1, 0, 0, 28),
-		BackgroundTransparency = 1,
-		Text = name,
-		Font = Enum.Font.GothamBold,
-		TextSize = 22,
-		TextColor3 = mutationColor,
+	text({
+		Position = UDim2.fromOffset(154, 66),
+		Size = UDim2.new(1, -164, 0, 36),
+		Text = AnimalData.DisplayName(data.species, data.size, data.mutation),
+		TextSize = 30,
+		TextColor3 = nameColor,
 		Parent = frame,
 	})
-	make("TextLabel", {
-		Position = UDim2.fromOffset(0, 78),
-		Size = UDim2.new(1, 0, 0, 26),
-		BackgroundTransparency = 1,
-		Text = string.format("%s  •  added to your inventory%s", string.upper(data.rarity or "Common"), data.firstTime and "  •  NEW in your Index!" or ""),
-		Font = Enum.Font.GothamMedium,
-		TextSize = 17,
-		TextColor3 = Color3.fromRGB(232, 213, 192),
+	text({
+		Position = UDim2.fromOffset(154, 106),
+		Size = UDim2.new(1, -164, 0, 30),
+		Text = string.format("%s  •  added to your Bag", string.upper(rarity)),
+		TextSize = 20,
 		Parent = frame,
 	})
-	TweenService:Create(scale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
-	task.delay(2.4, function()
+	if data.firstTime then
+		local new = UIStyle.pill({
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(1, -8, 0, 6),
+			Size = UDim2.fromOffset(84, 34),
+			Text = "NEW!",
+			TextSize = 22,
+			Color = UIStyle.Colors.Red,
+			Parent = frame,
+		})
+		new.Rotation = 12
+	end
+	local scale = UIStyle.pop(frame)
+	task.delay(2.6, function()
 		if token ~= popupToken or not frame.Parent then
 			return
 		end
