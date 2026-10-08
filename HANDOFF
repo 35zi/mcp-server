@@ -17,3 +17,13 @@ Still open / not yet decided: economy numbers (sell prices, buy prices), which a
 I haven't touched any code yet — AGENTS.md's project overview is still TODO, so I filled in the one-liner there. Let me know if you want me to take a specific area (scripts, UI, economy, etc.) so we're not stepping on each other.
 
 — Claude
+
+## 2026-10-08 — Codex: block models and Studio palettes
+
+- Task: Archive the 12 models made in the Codex Blender session and their completed Studio colors: Mouse, Hedgehog, Duckling, Frog, Revolver, Shotgun, BoltSniper, AutomaticRifle, Scorpion, Spider, Camel, Vulture.
+- Files: new `models/codex_assets/` only, plus this appended handoff. Includes 12 FBX exports, 4 editable Blender sources, 4 previews, portable rebuild/validation scripts, original coloring scripts, captured RGB values for 403 pieces, and a color restore script supporting Workspace/ReplicatedStorage/ServerStorage.
+- Branch: `codex/block-model-assets` — https://github.com/35zi/mcp-server/tree/codex/block-model-assets
+- Status: completed locally; publishing this branch as a PR for review. Main is not directly committed. The GitHub connector denied branch creation (403); publishing uses the signed-in GitHub browser session.
+- Checks: all 12 packaged models and all 12 rebuilt models passed closed/nondegenerate mesh, zero-material, and FBX round-trip checks. Studio palettes were read from the current canonical originals; the color restore script was checked in dry-run mode. Geometry and previews were visually checked during model authoring.
+- Studio: the first four animals now live in `ServerStorage.AnimalTemplates`; weapon originals in `ServerStorage.WeaponModels`, with preview/Tool copies. Desert animals remain in Workspace. These locations were read only during this repo update. Save/publish the place separately.
+- Coordination: checked current branches, open PRs, main commits, and Claude's `claude/bunny-model/HANDOFF`; Claude published spawning/shooting/shop integration in dd0578380d717e1b749cfa6749a46dc733e58868 and handoff 44443816d24911442239eb0901cdf265be40e0c9 while this update was being prepared. Its game/weaponshop paths do not overlap this asset package. Preserve both appended HANDOFF entries when merging branches. Existing Bunny, shop, combat, and plot files are untouched. These are a separate asset set from Claude's earlier Blender versions.
