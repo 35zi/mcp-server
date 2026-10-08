@@ -236,3 +236,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Files: models/game/AnimalData.lua, AnimalManager.lua (rollSpecies), SetupGameWorld.lua (MOVE list).
 - Branch: claude/bunny-model
 - Status: done — template measured 4.8 x 7.3 x 8.5 studs and seen in game; console clean. Place not saved by me — save in Studio.
+
+## Claude — 2026-10-09 02:10 UTC
+- Task: owner's request — better, scrollable Index (no new animals). World tabs scroll sideways, the cards scroll up/down (mouse wheel / drag / bar) so any number of animals or worlds fits; tabs show "Forest 2/4", a progress bar for the open world, "Unlocked x/y", cards sorted Common -> rarest, found Legendaries get a gold outline, cards resized to fit the window.
+- Files: models/game/AnimalMenuClient.client.lua (Index section only; Bag untouched).
+- Branch: claude/bunny-model
+- Status: done — Forest tab checked on screen, console clean (Desert tab/scroll not clicked through in the playtest). Place not saved by me — save in Studio.

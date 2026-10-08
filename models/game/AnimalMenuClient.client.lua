@@ -74,68 +74,130 @@ local bagStatus = statusLine(bagBody)
 ---------------------------------------------------------------- INDEX
 local currentWorld = 1
 local tabs = {}
-local tabRow = make("Frame", { Size = UDim2.new(1, 0, 0, 48), BackgroundTransparency = 1, Parent = indexBody })
+-- world tabs: their own horizontally scrolling strip, so any number of worlds fits
+local tabRow = make("ScrollingFrame", {
+	Size = UDim2.new(1, -190, 0, 54),
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	ScrollBarThickness = 4,
+	ScrollBarImageColor3 = UIStyle.Outline,
+	ScrollingDirection = Enum.ScrollingDirection.X,
+	AutomaticCanvasSize = Enum.AutomaticSize.X,
+	CanvasSize = UDim2.new(),
+	Parent = indexBody,
+})
 make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = tabRow })
+make("UIPadding", { PaddingTop = UDim.new(0, 2), PaddingLeft = UDim.new(0, 2), Parent = tabRow })
 local unlockedLabel = text({
 	AnchorPoint = Vector2.new(1, 0),
 	Position = UDim2.new(1, 0, 0, 6),
-	Size = UDim2.fromOffset(170, 34),
+	Size = UDim2.fromOffset(180, 34),
 	Text = "",
 	TextSize = 22,
 	TextXAlignment = Enum.TextXAlignment.Right,
 	Parent = indexBody,
 })
-local grid = make("Frame", { Position = UDim2.fromOffset(0, 62), Size = UDim2.new(1, 0, 1, -90), BackgroundTransparency = 1, Parent = indexBody })
+-- progress of the open world: "Forest · 3/4 found" over a filling bar
+local progressTrack = make("Frame", {
+	Position = UDim2.fromOffset(0, 58),
+	Size = UDim2.new(1, 0, 0, 22),
+	BackgroundColor3 = Color3.fromRGB(70, 44, 24),
+	Parent = indexBody,
+})
+UIStyle.corner(progressTrack, 11)
+UIStyle.stroke(progressTrack, 2)
+local progressFill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = C.Green, Parent = progressTrack })
+UIStyle.corner(progressFill, 11)
+local progressText = text({ Size = UDim2.fromScale(1, 1), Text = "", TextSize = 16, ZIndex = 3, Parent = progressTrack })
+-- the animal cards: scrolls up/down (mouse wheel, drag, scroll bar) when there are more than fit
+local grid = make("ScrollingFrame", {
+	Position = UDim2.fromOffset(0, 90),
+	Size = UDim2.new(1, 0, 1, -120),
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	ScrollBarThickness = 8,
+	ScrollBarImageColor3 = UIStyle.Outline,
+	ScrollingDirection = Enum.ScrollingDirection.Y,
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+	CanvasSize = UDim2.new(),
+	Parent = indexBody,
+})
 make("UIGridLayout", {
-	CellSize = UDim2.fromOffset(142, 290),
+	CellSize = UDim2.fromOffset(142, 262),
 	CellPadding = UDim2.fromOffset(12, 12),
 	SortOrder = Enum.SortOrder.LayoutOrder,
 	HorizontalAlignment = Enum.HorizontalAlignment.Center,
 	Parent = grid,
 })
+make("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 8), PaddingRight = UDim.new(0, 10), Parent = grid })
 
 local function caughtCount(species)
 	return player:GetAttribute("Caught_" .. species) or 0
 end
 
+-- species of a world, rarest last (Common ... Legendary), so a new tier lands at the end by itself
+local function sortedSpecies(world)
+	local list = table.clone(world.species)
+	table.sort(list, function(a, b)
+		local ra, rb = AnimalData.RarityRank(AnimalData.Species[a].rarity), AnimalData.RarityRank(AnimalData.Species[b].rarity)
+		if ra ~= rb then
+			return ra < rb
+		end
+		return a < b
+	end)
+	return list
+end
+
+local function foundIn(world)
+	local found = 0
+	for _, species in ipairs(world.species) do
+		if caughtCount(species) > 0 then
+			found += 1
+		end
+	end
+	return found
+end
+
 local function renderIndex()
 	local unlocked, total = 0, 0
 	for _, world in ipairs(AnimalData.Worlds) do
-		for _, species in ipairs(world.species) do
-			total += 1
-			if caughtCount(species) > 0 then
-				unlocked += 1
-			end
-		end
+		unlocked += foundIn(world)
+		total += #world.species
 	end
 	unlockedLabel.Text = string.format("Unlocked %d/%d", unlocked, total)
+	local current = AnimalData.Worlds[currentWorld]
+	local found = foundIn(current)
+	progressFill.Size = UDim2.fromScale(#current.species > 0 and found / #current.species or 0, 1)
+	progressFill.Visible = found > 0
+	progressText.Text = string.format("%s · %d/%d found", current.name, found, #current.species)
 	for id, b in pairs(tabs) do
-		UIStyle.setButton(b, nil, id == currentWorld and C.Green or C.Grey)
+		UIStyle.setButton(b, string.format("%s %s  %d/%d", WORLD_ICONS[id] or "", AnimalData.Worlds[id].name, foundIn(AnimalData.Worlds[id]), #AnimalData.Worlds[id].species), id == currentWorld and C.Green or C.Grey)
 	end
 	for _, c in ipairs(grid:GetChildren()) do
 		if c:IsA("GuiObject") then
 			c:Destroy()
 		end
 	end
-	for i, species in ipairs(AnimalData.Worlds[currentWorld].species) do
+	grid.CanvasPosition = Vector2.zero
+	for i, species in ipairs(sortedSpecies(current)) do
 		local info = AnimalData.Species[species]
 		local rarity = AnimalData.Rarities[info.rarity]
 		local count = caughtCount(species)
 		local known = count > 0
 		local card = make("Frame", { LayoutOrder = i, BackgroundColor3 = Color3.new(1, 1, 1), Parent = grid })
 		UIStyle.corner(card, 14)
-		UIStyle.stroke(card, 3)
+		UIStyle.stroke(card, 3, known and info.rarity == "Legendary" and rarity.color or nil)
 		UIStyle.gradient(card, UIStyle.rarityGradient(info.rarity), info.rarity == "Legendary" and 45 or 90)
-		local vp = UIStyle.picture({ Position = UDim2.fromOffset(8, 8), Size = UDim2.new(1, -16, 0, 140), Parent = card })
+		local vp = UIStyle.picture({ Position = UDim2.fromOffset(8, 8), Size = UDim2.new(1, -16, 0, 120), Parent = card })
 		UIStyle.showModel(vp, previews:FindFirstChild(species))
 		if not known then
 			vp.ImageColor3 = Color3.new(0, 0, 0)
 			vp.ImageTransparency = 0.1
 		end
-		text({ Position = UDim2.fromOffset(4, 154), Size = UDim2.new(1, -8, 0, 32), Text = known and species or "???", TextSize = 26, Parent = card })
+		text({ Position = UDim2.fromOffset(4, 131), Size = UDim2.new(1, -8, 0, 32), Text = known and species or "???", TextSize = 26, Parent = card })
 		UIStyle.pill({
 			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.new(0.5, 0, 0, 192),
+			Position = UDim2.new(0.5, 0, 0, 167),
 			Size = UDim2.fromOffset(118, 26),
 			Text = string.upper(info.rarity),
 			TextSize = 16,
@@ -143,8 +205,8 @@ local function renderIndex()
 			Parent = card,
 		})
 		text({
-			Position = UDim2.fromOffset(4, 228),
-			Size = UDim2.new(1, -8, 0, 48),
+			Position = UDim2.fromOffset(4, 199),
+			Size = UDim2.new(1, -8, 0, 56),
 			Text = known and string.format("Caught: %d\n💰 $%s/s", count, AnimalData.Commas(AnimalData.Income(species, "Medium", "None"))) or "Not caught yet",
 			TextWrapped = true,
 			TextSize = 19,
@@ -156,9 +218,9 @@ end
 
 for _, world in ipairs(AnimalData.Worlds) do
 	local b = UIStyle.button({
-		Size = UDim2.fromOffset(210, 46),
+		Size = UDim2.fromOffset(200, 46),
 		LayoutOrder = world.id,
-		Text = string.format("%s World %d · %s", WORLD_ICONS[world.id] or "", world.id, world.name),
+		Text = world.name,
 		TextSize = 19,
 		Color = C.Grey,
 		Parent = tabRow,
