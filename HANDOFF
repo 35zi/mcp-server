@@ -218,3 +218,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Studio: the original world floor/wall/trim Parts were RENAMED (World1..4Floor, World1..4WallL/R, World1..4TrimL/R, EndWall) and resized: every world 300 wide (x -149..151, the home area's wall lines), World1 z -86..-346, World2 -346..-686, World3 -686..-1006, World4 -1006..-1326; the 4 short entrance wall/trim Parts at z -88 were deleted; RedLine is 300 wide; Zone1/Zone2 cover the new worlds; Decor rebuilt (56 forest / 41 desert pieces). Home area + plots untouched.
 - Branch: claude/bunny-model
 - Status: done — playtested: 5 animals per world spawn spread over the big areas, console clean. Place not saved by me — save in Studio.
+
+## Claude — 2026-10-09 00:30 UTC
+- Task: owner's request — map walls taller and thicker. All 12 top-level wall Parts (home back + sides, World1-4 L/R, EndWall) are now 50 tall (bottom y -1) and 8 thick, grown outwards so the play area is unchanged; their 11 coloured caps moved to the new tops.
+- Files: models/game/BuildWorldLayout.lua (WALL_HEIGHT / WALL_THICK section). Studio: those wall + cap Parts.
+- Branch: claude/bunny-model
+- Status: done — checked on screen. Place not saved by me — save in Studio.
