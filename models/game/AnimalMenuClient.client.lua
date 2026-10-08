@@ -6,11 +6,15 @@ local ContextActionService=game:GetService("ContextActionService")
 local UserInputService=game:GetService("UserInputService")
 local player=Players.LocalPlayer
 local gui=player:WaitForChild("PlayerGui"):WaitForChild("GameUI")
+local layout=require(ReplicatedStorage:WaitForChild("GameUILayout"))
+layout.Apply(gui)
+local MarketplaceService=game:GetService("MarketplaceService")
 local motion=require(ReplicatedStorage:WaitForChild("UIMotion"))
 motion.BindButtons(gui)
 local frames=gui:WaitForChild("Frames")
 local index,pets=frames:WaitForChild("Index"),frames:WaitForChild("Pets")
 local data=require(ReplicatedStorage:WaitForChild("AnimalData"))
+local UIStyle=require(ReplicatedStorage:WaitForChild("UIStyle"))
 local previews=ReplicatedStorage:WaitForChild("AnimalPreviews")
 local remote=ReplicatedStorage:WaitForChild("AnimalInventoryRemote")
 local teleport=ReplicatedStorage:WaitForChild("GameUITeleport")
@@ -20,7 +24,6 @@ local blue=Color3.fromRGB(10,148,222)
 local red=Color3.fromRGB(245,55,55)
 local worldIndex=1
 local page=nil
-local petFilter="Equipped"
 local busy=false
 local inventory=nil
 local connections={}
@@ -94,13 +97,22 @@ local function picture(parent,species,locked,mutation)
  camera.CFrame=CFrame.lookAt(centre+direction*distance,centre)
  viewport.CurrentCamera=camera
 end
+local function prettyName(name)
+ return data.PrettyName and data.PrettyName(name) or name
+end
 local function rarityColor(name)
  local rarity=data.Rarities[name] return rarity and rarity.color or Color3.fromRGB(225,225,225)
 end
 local function card(parent,name,order,rarity)
  local c=make("Frame",{Name=name,LayoutOrder=order,BackgroundColor3=rarityColor(rarity):Lerp(Color3.new(1,1,1),.2),BorderSizePixel=0,ZIndex=14},parent)
  make("UIStroke",{Thickness=2,Color=dark,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},c)
- make("UIGradient",{Color=ColorSequence.new(Color3.new(1,1,1),Color3.fromRGB(175,210,230)),Rotation=90},c)
+ if rarity=="Secret" then
+  -- Secret: a white card with a turning rainbow over it
+  c.BackgroundColor3=Color3.new(1,1,1)
+  UIStyle.rainbow(c,45)
+ else
+  make("UIGradient",{Color=ColorSequence.new(Color3.new(1,1,1),Color3.fromRGB(175,210,230)),Rotation=90},c)
+ end
  return c
 end
 local function caught(species) return player:GetAttribute("Caught_"..species) or 0 end
@@ -109,7 +121,7 @@ local function found(world)
 end
 local function renderIndex()
  local body=index.Content
- local tabWidth=math.min(145,math.max(90,math.floor((layoutSize(body.WorldTabs).X-4)/math.min(2,#data.Worlds))))
+ local tabWidth=math.min(145,math.max(90,math.floor((layoutSize(body.WorldTabs).X-4)/math.max(1,#data.Worlds))))
  for _,tab in body.WorldTabs:GetChildren() do if tab:IsA("TextButton") then tab.Size=UDim2.fromOffset(tabWidth,32) end end
  local total,unlocked=0,0
  for _,world in data.Worlds do total+=#world.species unlocked+=found(world) end
@@ -140,8 +152,13 @@ local function renderIndex()
   local c=card(scroller,"Animal_"..name,i,info.rarity)
   c:SetAttribute("Unlocked",known)
   picture(c,name,not known)
-  label("Name",c,known and string.upper(name) or "???",UDim2.fromScale(.03,.59),UDim2.fromScale(.94,.13),20)
+  label("Name",c,known and string.upper(prettyName(name)) or "???",UDim2.fromScale(.03,.59),UDim2.fromScale(.94,.13),20)
   label("Rarity",c,string.upper(info.rarity),UDim2.fromScale(.03,.73),UDim2.fromScale(.94,.10),12,rarityColor(info.rarity))
+  if info.rarity=="Secret" then
+   -- rainbow rarity (and name, once caught)
+   c.Rarity.TextColor3=Color3.new(1,1,1) UIStyle.rainbow(c.Rarity)
+   if known then UIStyle.rainbow(c:FindFirstChild("Name")) end
+  end
   label("Caught",c,known and ("CAUGHT: "..caught(name)) or "NOT FOUND",UDim2.fromScale(.03,.86),UDim2.fromScale(.94,.10),12)
  end
  scroller.CanvasPosition=oldScroll
@@ -150,13 +167,11 @@ local notice
 local function ask(action,id)
  if busy then return end
  busy=true
- pets.Content.EquipBest.Text="WORKING..."
- pets.Content.EquipBest.Active=false
+ pets.EquipBestArtwork.Interactable=false
  local ok,success,message=pcall(function() return remote:InvokeServer(action,id) end)
- pets.Content.Status.Text=ok and tostring(message or "") or "Please try again."
- pets.Content.Status.TextColor3=ok and success and green or Color3.new(1,1,1)
- busy=false pets.Content.EquipBest.Active=true pets.Content.EquipBest.Text="EQUIP BEST"
- if not pets.Content.Status.Visible and notice then notice(pets.Content.Status.Text) end
+ local feedback=ok and tostring(message or "") or "Please try again."
+ busy=false pets.EquipBestArtwork.Interactable=true
+ if notice and (not ok or not success) then notice(feedback) end
  if refresh then refresh() end
 end
 local function renderPets()
@@ -166,7 +181,7 @@ local function renderPets()
  if inventory then for _,item in inventory:GetChildren() do
   if item:IsA("Folder") then
    if item:GetAttribute("State")=="Plot" then equipped+=1 end
-   if petFilter=="All" or item:GetAttribute("State")=="Plot" then table.insert(items,item) end
+   if item:GetAttribute("State")=="Plot" then table.insert(items,item) end
   end
  end end
  table.sort(items,function(a,b)
@@ -175,22 +190,13 @@ local function renderPets()
  end)
  body.Count.Text=string.format("%d / 24 EQUIPPED",equipped)
  body.Income.Text="$"..data.Commas(player:GetAttribute("IncomePerSecond") or 0).." / SECOND"
- body.EquippedTab.BackgroundColor3=petFilter=="Equipped" and green or blue
- body.AllTab.BackgroundColor3=petFilter=="All" and green or blue
  local scroller=body.Cards
  local oldScroll=scroller.CanvasPosition
  clearCards(scroller)
- local vp=workspace.CurrentCamera.ViewportSize
- local compact=vp.X<760 or vp.Y<450
- body.Status.Visible=not compact
- scroller.Size=UDim2.fromScale(1,compact and .68 or .59)
- if compact then
-  scroller:FindFirstChildOfClass("UIGridLayout").CellSize=UDim2.fromOffset(math.max(100,layoutSize(scroller).X-16),math.max(100,math.min(120,layoutSize(scroller).Y-12)))
- else
-  gridSize(scroller,math.min(math.clamp(layoutSize(scroller).X*.39,142,214),math.max(142,layoutSize(scroller).Y-16)))
- end
+ scroller.Size=UDim2.fromScale(1,.76)
+ scroller:FindFirstChildOfClass("UIGridLayout").CellSize=UDim2.fromOffset(math.max(100,layoutSize(scroller).X-16),84)
  body.Empty.Visible=#items==0
- body.Empty.Text=petFilter=="Equipped" and "NO PETS EQUIPPED\nCatch animals, then tap EQUIP BEST!" or "NO PETS YET\nBring a stunned animal back across the red line."
+ body.Empty.Text="NO PETS EQUIPPED\nSelect EQUIP BEST to use pets from your Backpack."
  for i,item in items do
   local a=item:GetAttributes()
   local species=a.Species or "Pet"
@@ -199,23 +205,15 @@ local function renderPets()
   picture(c,species,false,a.Mutation)
   -- Pet pictures leave room for two action buttons.
   c.Preview.Size=UDim2.fromScale(.90,.42)
-  label("Name",c,string.upper(species),UDim2.fromScale(.02,.47),UDim2.fromScale(.96,.10),18)
+  label("Name",c,string.upper(prettyName(species)),UDim2.fromScale(.02,.47),UDim2.fromScale(.96,.10),18)
+  if a.Rarity=="Secret" then UIStyle.rainbow(c:FindFirstChild("Name")) end
   local variant=string.upper(a.Size or "Medium")..(a.Mutation and a.Mutation~="None" and (" • "..string.upper(a.Mutation)) or "")
   label("Variant",c,variant,UDim2.fromScale(.02,.59),UDim2.fromScale(.96,.08),11)
   label("Income",c,"$"..data.Commas(a.Income or 0).."/s",UDim2.fromScale(.02,.69),UDim2.fromScale(.96,.10),18,green)
-  local onPlot=a.State=="Plot"
-  local equip=button("Equip",c,onPlot and "UNEQUIP" or "EQUIP",UDim2.fromScale(.04,.82),UDim2.fromScale(.58,.14),onPlot and red or green)
-  local hold=button("Hold",c,a.State=="Held" and "PUT AWAY" or "HOLD",UDim2.fromScale(.65,.82),UDim2.fromScale(.31,.14),blue)
-  equip.Activated:Connect(function() ask(onPlot and "Bag" or "Plot",a.Id) end)
-  hold.Activated:Connect(function() ask("Hold",a.Id) end)
-  if compact then
-   c.Preview.Position=UDim2.fromScale(.02,.04) c.Preview.Size=UDim2.fromScale(.29,.88)
-   c:FindFirstChild("Name").Position=UDim2.new(.34,0,0,3) c:FindFirstChild("Name").Size=UDim2.new(.64,0,0,20)
-   c.Variant.Position=UDim2.new(.34,0,0,24) c.Variant.Size=UDim2.new(.64,0,0,10)
-   c.Income.Position=UDim2.new(.34,0,0,35) c.Income.Size=UDim2.new(.64,0,0,16)
-   equip.Position=UDim2.new(.34,0,1,-46) equip.Size=UDim2.new(.40,0,0,40)
-   hold.Position=UDim2.new(.76,0,1,-46) hold.Size=UDim2.new(.21,0,0,40)
-  end
+  c.Preview.Position=UDim2.fromScale(.02,.04) c.Preview.Size=UDim2.fromScale(.30,.90)
+  c:FindFirstChild("Name").Position=UDim2.new(.35,0,0,5) c:FindFirstChild("Name").Size=UDim2.new(.63,0,0,24)
+  c.Variant.Position=UDim2.new(.35,0,0,31) c.Variant.Size=UDim2.new(.63,0,0,12)
+  c.Income.Position=UDim2.new(.35,0,0,49) c.Income.Size=UDim2.new(.63,0,0,24)
  end
  scroller.CanvasPosition=oldScroll
 end
@@ -230,23 +228,25 @@ end
 local function resize()
  local vp=workspace.CurrentCamera.ViewportSize
  local width=math.min(680,vp.X-32,vp.Y*.80*1.40090096)
- for _,frame in {index,pets} do frame.Size=UDim2.fromOffset(width,width/1.40090096) end
+ index.Size=UDim2.fromOffset(width,width/1.40090096)
+ layout.ResizePets(gui,vp)
+ motion.SetFramePosition(pets,pets.Position)
  gui.CarryBanner.Size=UDim2.fromOffset(math.min(650,vp.X-32),44)
  local scale=gui.HUD:FindFirstChildOfClass("UIScale") or make("UIScale",{},gui.HUD)
  scale.Scale=math.min(1,vp.X/800,vp.Y/550)
  local hideSides=page~=nil and vp.X<760
- gui.LeftButtons.Visible=not hideSides gui.RightButtons.Visible=not hideSides gui.TopButtons.Visible=not hideSides
+ gui.LeftButtons.Visible=not hideSides gui.RightButtons.Visible=not hideSides and page~="Pets" gui.TopButtons.Visible=not hideSides
  refresh()
 end
 local function setOpen(value)
  if value==page then value=nil end
  if value and not page then lastMouse=UserInputService.MouseBehavior end
  page=value
+ resize()
  motion.SetFrame(index,value=="Index") motion.SetFrame(pets,value=="Pets")
  gui:SetAttribute("Open",value~=nil)
  if value then UserInputService.MouseBehavior=Enum.MouseBehavior.Default UserInputService.MouseIconEnabled=true
  elseif lastMouse then UserInputService.MouseBehavior=lastMouse lastMouse=nil end
- pets.Content.Status.Text="Equipped pets earn money on your plot."
  resize()
  refresh()
 end
@@ -256,12 +256,10 @@ for i,world in data.Worlds do
  tab.Activated:Connect(function() worldIndex=i index.Content.Cards.CanvasPosition=Vector2.zero renderIndex() end)
 end
 gui.LeftButtons.Index.Activated:Connect(function() setOpen("Index") end)
-gui.RightButtons.Pets.Activated:Connect(function() petFilter="Equipped" setOpen("Pets") end)
+gui.RightButtons.Pets.Activated:Connect(function() setOpen("Pets") end)
 index.CloseButton.Activated:Connect(function() setOpen(nil) end)
 pets.CloseButton.Activated:Connect(function() setOpen(nil) end)
-pets.Content.EquippedTab.Activated:Connect(function() petFilter="Equipped" pets.Content.Cards.CanvasPosition=Vector2.zero renderPets() end)
-pets.Content.AllTab.Activated:Connect(function() petFilter="All" pets.Content.Cards.CanvasPosition=Vector2.zero renderPets() end)
-pets.Content.EquipBest.Activated:Connect(function() ask("EquipBest") end)
+pets.EquipBestArtwork.Activated:Connect(function() ask("EquipBest") end)
 UserInputService.InputBegan:Connect(function(input,processed)
  if not processed and (input.KeyCode==Enum.KeyCode.Backspace or input.KeyCode==Enum.KeyCode.ButtonB) and page then setOpen(nil) end
 end)
@@ -281,8 +279,20 @@ local function travel(destination)
  travelBusy=false
 end
 for _,destination in {"Base","Weapons","Speed"} do gui.TopButtons[destination].Activated:Connect(function() travel(destination) end) end
--- The supplied Shop tile also takes you to the existing weapon shop.
-gui.LeftButtons.Shop.Activated:Connect(function() travel("Weapons") end)
+-- Roblox's native shop lists this experience's passes and developer products.
+local shopBusy=false
+gui.LeftButtons.Shop.Activated:Connect(function()
+ if shopBusy then return end
+ shopBusy=true
+ if page then setOpen(nil) end
+ local humanoid=player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+ if humanoid then humanoid:UnequipTools() end
+ local ok=pcall(function() MarketplaceService:OpenShop(player) end)
+ if not ok then
+  notice("The Roblox shop is unavailable right now.")
+ end
+ task.delay(1,function() shopBusy=false end)
+end)
 local function updateHUD()
  gui.HUD.Income.Text="+$"..data.Commas(player:GetAttribute("IncomePerSecond") or 0).." / SECOND"
  if page=="Pets" then refresh() end
@@ -322,7 +332,7 @@ gui.CarryBanner.Drop.Activated:Connect(drop)
 local function carryChanged()
  local carrying=player:GetAttribute("Carrying")
  gui.CarryBanner.Visible=carrying~=nil
- gui.CarryBanner.Label.Text=carrying and ("CARRYING "..string.upper(carrying).." — BRING IT HOME!") or ""
+ gui.CarryBanner.Label.Text=carrying and ("CARRYING "..string.upper(carrying).." — BRING IT HOME! (others can shoot you to steal it)") or ""
  if carrying then
   ContextActionService:BindAction("DropAnimal",function(_,state) if state==Enum.UserInputState.Begin then drop() end return Enum.ContextActionResult.Sink end,false,Enum.KeyCode.G,Enum.KeyCode.ButtonY)
  else ContextActionService:UnbindAction("DropAnimal") end

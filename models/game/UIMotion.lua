@@ -28,10 +28,54 @@ function Motion.ResetButtons(root)
   end
  end
 end
+function Motion.CenterAnchor(button)
+ if button.AnchorPoint==Vector2.new(.5,.5) then return end
+ local parent=button.Parent
+ local managed=parent and (parent:FindFirstChildOfClass("UIListLayout") or parent:FindFirstChildOfClass("UIGridLayout"))
+ local delta=Vector2.new(.5,.5)-button.AnchorPoint
+ if not managed then
+  local size=button.Size
+  button.Position+=UDim2.new(size.X.Scale*delta.X,size.X.Offset*delta.X,size.Y.Scale*delta.Y,size.Y.Offset*delta.Y)
+ end
+ button.AnchorPoint=Vector2.new(.5,.5)
+end
+local function buttonVisual(button)
+ -- Scale only the artwork. Layouts and the clickable area retain a fixed size.
+ local class=button:IsA("ImageButton") and "ImageLabel" or "TextLabel"
+ local visual=Instance.new(class) visual.Name="MotionVisual"
+ local properties={"BackgroundColor3","BackgroundTransparency","BorderSizePixel","BorderColor3","ZIndex","Rotation"}
+ if class=="ImageLabel" then
+  for _,property in {"Image","ImageColor3","ImageTransparency","ScaleType","SliceCenter","SliceScale","TileSize","ResampleMode"} do table.insert(properties,property) end
+ else
+  for _,property in {"Text","FontFace","TextSize","TextScaled","TextWrapped","RichText","TextColor3","TextTransparency","TextStrokeColor3","TextStrokeTransparency","TextXAlignment","TextYAlignment","TextTruncate","LineHeight"} do table.insert(properties,property) end
+ end
+ local bases
+ for _,state in frameStates do
+  if state.visuals[button] then bases=state.visuals[button] state.visuals[button]=nil end
+ end
+ for _,property in properties do visual[property]=bases and bases[property] or button[property] end
+ visual.AnchorPoint=Vector2.new(.5,.5) visual.Position=UDim2.fromScale(.5,.5) visual.Size=UDim2.fromScale(1,1)
+ for _,child in button:GetChildren() do
+  if not child:IsA("UIAspectRatioConstraint") and not child:IsA("UISizeConstraint") and not child:IsA("LuaSourceContainer") then child.Parent=visual end
+ end
+ button.BackgroundTransparency=1 button.BorderSizePixel=0
+ if class=="ImageLabel" then button.ImageTransparency=1 else button.TextTransparency=1 button.TextStrokeTransparency=1 end
+ visual.Parent=button
+ -- Color and caption changes still come from the existing button's public properties.
+ for _,property in properties do
+  if property~="BackgroundTransparency" and property~="ImageTransparency" and property~="TextTransparency" and property~="TextStrokeTransparency" and property~="BorderSizePixel" then
+   button:GetPropertyChangedSignal(property):Connect(function() visual[property]=button[property] end)
+  end
+ end
+ return visual
+end
 function Motion.BindButton(button)
  if buttonStates[button] or not button:IsA("GuiButton") then return end
- local scale=button:FindFirstChildOfClass("UIScale")
- if not scale then scale=Instance.new("UIScale") scale.Name="MotionScale" scale.Parent=button end
+ Motion.CenterAnchor(button)
+ button.AutoButtonColor=false
+ local visual=buttonVisual(button)
+ local scale=visual:FindFirstChildOfClass("UIScale")
+ if not scale then scale=Instance.new("UIScale") scale.Name="MotionScale" scale.Parent=visual end
  local state={scale=scale,base=scale.Scale,hover=false,selected=false,down=false}
  buttonStates[button]=state
  button.MouseEnter:Connect(function() if button.Active and button.Interactable then state.hover=true updateButton(button,state) end end)
@@ -44,9 +88,13 @@ function Motion.BindButton(button)
    state.down=true pressed[button]=input updateButton(button,state)
   end
  end)
- button:GetPropertyChangedSignal("Active"):Connect(function()
-  if not button.Active then state.down=false state.hover=false pressed[button]=nil updateButton(button,state) end
- end)
+ local function availabilityChanged()
+  if not button.Active or not button.Interactable then
+   state.down=false state.hover=false state.selected=false pressed[button]=nil updateButton(button,state)
+  end
+ end
+ button:GetPropertyChangedSignal("Active"):Connect(availabilityChanged)
+ button:GetPropertyChangedSignal("Interactable"):Connect(availabilityChanged)
  button.Destroying:Connect(function()
   if state.animation then state.animation:Cancel() end
   buttonStates[button]=nil pressed[button]=nil
@@ -67,10 +115,11 @@ function Motion.BindButtons(gui)
   if node:IsA("GuiButton") then task.defer(function() if node:IsDescendantOf(gui) then Motion.BindButton(node) end end) end
  end)
  gui:GetPropertyChangedSignal("Enabled"):Connect(function() if not gui.Enabled then Motion.ResetButtons(gui) end end)
+ gui.DescendantRemoving:Connect(function(node) if node:IsA("GuiObject") then Motion.ResetButtons(node) end end)
 end
 local function visualProperties(node)
  if node:IsA("UIStroke") then return {"Transparency"} end
- if not node:IsA("GuiObject") then return {} end
+ if not node:IsA("GuiObject") or (node:IsA("GuiButton") and buttonStates[node]) then return {} end
  local properties={"BackgroundTransparency"}
  if node:IsA("ImageLabel") or node:IsA("ImageButton") or node:IsA("ViewportFrame") then table.insert(properties,"ImageTransparency") end
  if node:IsA("TextLabel") or node:IsA("TextButton") or node:IsA("TextBox") then
@@ -105,6 +154,14 @@ local function frameState(frame)
   table.clear(state.visuals) frameStates[frame]=nil
  end)
  return state
+end
+function Motion.SetFramePosition(frame,position)
+ local state=frameStates[frame]
+ if state then
+  state.position=position
+  if state.tweens and state.tweens[3] then state.tweens[3]:Cancel() end
+ end
+ frame.Position=position
 end
 local function offset(position,y) return position+UDim2.fromOffset(0,y) end
 function Motion.SetFrame(frame,show,instant)

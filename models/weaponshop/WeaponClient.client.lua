@@ -3,7 +3,7 @@
 -- Everything the player sees and hears when using a weapon (any Tool with a WeaponId attribute):
 --   * third person (default): a small precise aim dot sits exactly where the shot will land (red over an animal,
 --     faded when the target is out of range); the mouse cursor is hidden while a weapon is out
---   * hold RIGHT-CLICK (or L2): the camera glides smoothly from third person into first person and lines up the
+--   * hold RIGHT-CLICK (or L2): third person glides to an over-the-shoulder view; first person lines up the
 --     iron sights (or the scope overlay for scoped weapons); a viewmodel of the gun with blocky hands is drawn;
 --     Accuracy turns into a gentle sight sway; release to glide back out
 --   * LEFT-CLICK (or R2, or tap): fire. The shot is shown instantly (kick, muzzle flash + smoke, tracer, impact,
@@ -28,6 +28,7 @@ local WeaponConfig = require(ReplicatedStorage:WaitForChild("WeaponConfig"))
 local combat = ReplicatedStorage:WaitForChild("WeaponCombat")
 local audio = ReplicatedStorage:WaitForChild("GameAudio")
 local userSettings = UserSettings():GetService("UserGameSettings")
+local GuiService = game:GetService("GuiService")
 
 local RENDER_STEP = "WeaponClientRender"
 local ADS_SPEED = 11 -- how fast the camera glides into / out of the sights
@@ -277,7 +278,7 @@ local hiddenState = false
 local function shopOpen()
 	local gui = player.PlayerGui:FindFirstChild("WeaponShopUI")
 	local menu = player.PlayerGui:FindFirstChild("GameUI")
-	return (gui ~= nil and gui.Enabled) or (menu ~= nil and menu:GetAttribute("Open") == true)
+	return (gui ~= nil and gui.Enabled) or (menu ~= nil and menu:GetAttribute("Open") == true) or GuiService.MenuIsOpen
 end
 
 local function isAnimal(instance)
@@ -409,7 +410,7 @@ local function releaseCamera(restore)
 	if humanoid then
 		humanoid.AutoRotate = saved.autoRotate
 	end
-	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	UserInputService.MouseBehavior = saved.mouseBehavior
 	setCharacterHidden(false)
 	if restore then
 		if head then
@@ -438,6 +439,8 @@ local function takeCamera()
 		fov = camera.FieldOfView,
 		dist = math.clamp((camera.CFrame.Position - head.Position).Magnitude, 0.5, 60),
 		autoRotate = humanoid.AutoRotate,
+		mouseBehavior = UserInputService.MouseBehavior,
+		firstPerson = player.CameraMode == Enum.CameraMode.LockFirstPerson or (camera.CFrame.Position-camera.Focus.Position).Magnitude < 1,
 	}
 	local look = camera.CFrame.LookVector
 	yaw = math.atan2(-look.X, -look.Z)
@@ -449,9 +452,9 @@ local function takeCamera()
 end
 
 -- the third-person shot: from the muzzle towards whatever is under the mouse, stopped by the first thing it hits
-local function thirdPersonAim()
+local function thirdPersonAim(centered)
 	local camera = workspace.CurrentCamera
-	local mouse = UserInputService:GetMouseLocation()
+	local mouse = centered and camera.ViewportSize/2 or UserInputService:GetMouseLocation()
 	local ray = camera:ViewportPointToRay(mouse.X, mouse.Y) -- GetMouseLocation is in viewport space (includes the top bar)
 	local params = rayParams()
 	local result = workspace:Raycast(ray.Origin, ray.Direction * 1000, params)
@@ -496,9 +499,15 @@ local function fire()
 	local aimed = camOwned and alpha > 0.6
 	local landing, hitInstance, normal, muzzleCF
 	if aimed then
-		landing, hitInstance, normal = adsAim()
-		muzzleCF = c.vmGunCF and (c.vmGunCF * c.vm.muzzleRel) or workspace.CurrentCamera.CFrame
-		muzzleCF = CFrame.lookAt(muzzleCF.Position, landing)
+		if saved.firstPerson then
+			landing, hitInstance, normal = adsAim()
+			muzzleCF = c.vmGunCF and (c.vmGunCF * c.vm.muzzleRel) or workspace.CurrentCamera.CFrame
+			muzzleCF = CFrame.lookAt(muzzleCF.Position, landing)
+		else
+			local muzzle
+			landing, hitInstance, normal, _, muzzle = thirdPersonAim(true)
+			muzzleCF = CFrame.lookAt(muzzle, landing)
+		end
 	else
 		local muzzle
 		landing, hitInstance, normal, _, muzzle = thirdPersonAim()
@@ -582,9 +591,8 @@ local function onRender(dt)
 	if shopOpen() then
 		-- the shop owns the camera: step aside without touching it
 		if camOwned then
-			camOwned = false
-			humanoid.AutoRotate = saved.autoRotate
-			setCharacterHidden(false)
+			local weaponShop=player.PlayerGui:FindFirstChild("WeaponShopUI")
+			releaseCamera(not (weaponShop and weaponShop.Enabled))
 		end
 		aiming, alpha = false, 0
 		setViewmodelVisible(c.vm, false)
@@ -616,7 +624,7 @@ local function onRender(dt)
 	if camOwned then
 		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
 		UserInputService.MouseIconEnabled = false
-		local scoped = c.scope and e > 0.92
+		local scoped = saved.firstPerson and c.scope and e > 0.92
 		local sensitivity = 0.0034 * userSettings.MouseSensitivity * (1 - 0.4 * e) * (scoped and 0.35 or 1)
 		local delta = UserInputService:GetMouseDelta()
 		yaw -= delta.X * sensitivity
@@ -631,16 +639,29 @@ local function onRender(dt)
 		local amp = math.rad(c.stats.AdsSway) * e
 		local sway = CFrame.Angles(math.sin(now * 1.1) * amp * 0.6, math.sin(now * 0.7 + 1) * amp, 0)
 		local recoil = CFrame.Angles(math.rad(2.5 * kickStrength * kick) * e, 0, 0)
-		local camCF = CFrame.new(eye) * CFrame.fromOrientation(pitch, yaw, 0) * sway * recoil * CFrame.new(0, 0, saved.dist * (1 - e))
+		local rotation = CFrame.fromOrientation(pitch, yaw, 0) * sway * recoil
+		local offset = saved.firstPerson and Vector3.new(0,0,saved.dist*(1-e))
+			or Vector3.new(0,0,saved.dist):Lerp(Vector3.new(2.25,.35,5.5),e)
+		local camCF = CFrame.new(eye) * rotation * CFrame.new(offset)
+		if not saved.firstPerson then
+			-- Stop before walls while retaining third-person visibility and the real gun.
+			local deltaPosition=camCF.Position-eye
+			local hit=workspace:Raycast(eye,deltaPosition,rayParams())
+			if hit then
+				local position=eye+deltaPosition.Unit*math.max(.4,hit.Distance-.5)
+				camCF=CFrame.new(position)*rotation
+			end
+		end
 		camera.CFrame = camCF
-		camera.FieldOfView = saved.fov + ((c.cfg.Fov or 50) - saved.fov) * e
-		setCharacterHidden(e > 0.55)
+		local targetFov=saved.firstPerson and (c.cfg.Fov or 50) or math.min(saved.fov,60)
+		camera.FieldOfView = saved.fov + (targetFov - saved.fov) * e
+		setCharacterHidden(saved.firstPerson and e > 0.55)
 
 		local pose = HIP_POSE:Lerp(c.adsPose, e)
 		local kickCF = CFrame.new(0, 0.04 * kick, 0.25 * kick * kickStrength) * CFrame.Angles(math.rad(7 * kick * kickStrength), 0, 0)
 		local gunCF = camCF * pose * kickCF
 		c.vmGunCF = gunCF
-		local showVm = e > 0.35 and not scoped
+		local showVm = saved.firstPerson and e > 0.35 and not scoped
 		setViewmodelVisible(c.vm, showVm)
 		if showVm then
 			local hammerCF, cylinderCF, slideCF = cycleTransforms(c, now)
@@ -655,7 +676,15 @@ local function onRender(dt)
 			cycleTransforms(c, now) -- keep the hammer click timing even when the gun isn't drawn
 		end
 
-		reticle.Visible = false
+		reticle.Visible = not saved.firstPerson
+		if reticle.Visible then
+			local landing,hit,_,outOfRange=thirdPersonAim(true)
+			local screen,onScreen=camera:WorldToViewportPoint(landing)
+			reticle.Visible=onScreen reticle.Position=UDim2.fromOffset(screen.X,screen.Y)
+			dot.BackgroundColor3=isAnimal(hit) and RED or WHITE ringStroke.Color=dot.BackgroundColor3
+			ringStroke.Transparency=(outOfRange or cooling) and .7 or .25
+			dot.BackgroundTransparency=outOfRange and .6 or 0
+		end
 		scope.Visible = scoped
 		if scoped then
 			local size = math.min(camera.ViewportSize.X, camera.ViewportSize.Y) * 0.92

@@ -1,46 +1,47 @@
 # StarterGui GameUI
 
-Installed in the gameplay Studio place (80759588926584), using the owner's imported cyan/stud GameUI images. The separate UI-only Studio place was left alone.
+The gameplay Studio place is 80759588926584. Menus use the owner's imported GameUI artwork.
 
-## Installation map
+## Install
 
-- `BuildStarterGameUI.lua`: run once in Edit mode after importing StarterGui.GameUI. Keeps the supplied Index image, close button, top/side tiles and their assets. Adds Index.Content, Frames.Pets, HUD and CarryBanner. Re-running replaces generated content. Imported buttons are explicitly made active.
-- `AnimalMenuClient.client.lua`: replaces StarterPlayer.StarterPlayerScripts.AnimalMenuClient. Opens the existing frames, renders collections and pets, controls Close/Equip/Hold/Equip Best, updates cash/income, and calls the teleport remote. No second menu controller is needed.
-- `EquipBestService.lua`: ServerScriptService ModuleScript used by InventoryService.
-- `InventoryService.server.lua`: existing server script with the EquipBest action and rate limit added. Animal rig integration remains intact.
-- `GameUITeleports.server.lua`: ServerScriptService Script, creates ReplicatedStorage.GameUITeleport at runtime.
-- `AnimalClient.client.lua`: legacy AnimalHud cash/count/wave block removed; transient catch/stun/announcement feedback remains in AnimalEffects.
-- `../weaponshop/WeaponClient.client.lua`: only the menu lookup changed from AnimalMenu to GameUI. Weapon shop source and appearance remain unchanged.
+- ReplicatedStorage: UIMotion, GameUILayout, PetBackpack.
+- StarterPlayerScripts: AnimalMenuClient, WeaponClient, WeaponShopClient.
+- ServerScriptService: InventoryService, EquipBestService, GameUITeleports.
+- Run BuildStarterGameUI only when generating the original UI. For the owner's newer Pets artwork, preserve the imported frame and run GameUILayout.Apply(GameUI); the client also applies it idempotently.
 
-## Behavior
+## Pets and Backpack
 
-Index: world tabs, progress bar, found count, rarity cards, locked silhouettes and caught totals from Caught_<Species>. Collections come from AnimalData.Worlds.
+Frames.Pets is a compact right-side equipped-pet summary. It lists only entries with State=Plot, their individual earnings, total income, equipped count, a larger close button, and the supplied Equip Best artwork button. There are no inventory tabs, item actions, or status text. The desktop panel is 240 by approximately 383 pixels and shrinks to fit smaller viewports.
 
-Pets: Equipped means animals placed on the player's income-producing plot. All Pets includes Bag, Held and Plot entries. Equip Best ranks AnimalData.Income (size and mutation included), uses the existing plot placement rules, and caps equipped pets at 24. If a swap errors or earns less, it restores the previous plot and item states. Geometry can limit how many animals fit. Existing inventory and cash remain session-only, as before.
+Bag/Held pets appear as Tools in Roblox's built-in Backpack. Selecting a pet holds it; clicking while inside the owner's base places it on the plot. Taking a plot pet back returns it to the Backpack. PetBackpack mirrors state changes, removes equipped/deleted entry Tools, and rebuilds Backpack Tools after respawn. It reuses the existing rigged held-pet factory and server plot placement rules.
 
-Base resolves the player's assigned PlotName and owned SpawnPoint. Weapons resolves WeaponShop.ShopView.ShopZone, which opens the existing shop. Speed reflects the shop's X coordinate across SpawnLocation.X, keeping the same Z and finding the floor. Destinations are computed on the server; requests are rate limited and cannot bypass bringing a carried animal home.
+Equip Best ranks income, respects the existing 24-pet cap and plot geometry, and rolls back lower-income/failed swaps. Inventory and cash remain session-only.
 
-Desktop uses pet cards; small viewports use scrolling rows with larger controls and notification feedback. Menus hide side/top buttons when the viewport is narrow. GUI elements respect the imported DeviceSafeInsets.
+## Camera and shop buttons
+
+Aiming from third person interpolates to a right shoulder view, retains the visible character and real gun, uses a centered muzzle-checked ray, and stops the camera before walls. Aiming from first person retains the existing iron sights, scope and viewmodel. Releasing aim restores the previous zoom and camera control.
+
+Weapons lands four studs outside the shop activation ring and faces the counter. Enter the ring to open the existing weapon shop. Speed mirrors this safe arrival position across SpawnLocation.X. Base uses the owner's SpawnPoint. All destinations resolve on the server and retain rate limits and the carried-animal restriction.
+
+Shop calls MarketplaceService.OpenShop(LocalPlayer), Roblox's native shop interface. It puts held Tools away so weapon input/cursor handling does not interfere.
+
+## Motion
+
+Buttons have centered anchors. A centered MotionVisual carries their artwork/caption and UIScale; the original button's layout slot and clickable area stay fixed. Hover/focus scales to 1.035, press to 0.95. Existing caption/color updates propagate to the artwork. Disabled buttons reset immediately, and mouse release outside the button clears pressed state.
+
+Index/Pets open with a short scale/fade/slide and close in 0.12 seconds. Interrupted tweens cancel and reopen cleanly. Responsive positioning updates the frame's saved destination; grid measurement excludes its temporary animation scale. The weapon shop also uses shared button motion.
 
 ## Verification
 
-`QAStarterGameUI.lua` is a manual regression runner: pass the EquipBestService and AnimalData modules. It creates temporary mock inventories/plots, checks ranking/cap/income, held-tool cleanup and lower-income rollback, and removes its fixtures. A copy is under the Studio backup folder for inspection; it does not run automatically.
+Actual Studio Play checks passed:
+- Three Bag pets produced exactly three Backpack Tools; no pets appeared in the equipped summary until placed.
+- Built-in Backpack selection, placement on the base, put-away state, return to Backpack, and respawn restoration without duplicates.
+- Equip Best selected three test pets ($137/s), removed their Backpack Tools, and produced three equipped-only cards with no item buttons.
+- No status text or inventory tabs; smaller panel and larger X visually checked.
+- Third-person shoulder view, visible avatar/reticle, release camera restoration; first-person sights and viewmodel preserved.
+- Weapons arrived outside the ring without opening the shop view; Roblox's native Shop preview opened.
+- Hover/press/release outside, stationary neighboring buttons and centered artwork, interrupted open/close, Index world tabs and caption updates.
 
-- Actual mouse clicks: Index/world switching/Close, Pets/tabs/Close, empty Equip Best, individual Equip/Unequip/Hold, held-pet Equip Best, Base, Weapons (including original shop Close), Speed.
-- 33 temporary pets: selected 24 highest incomes, sum $737/s, 24 plot models; HUD and inventory totals agreed. Duplicate Equip Best requests were blocked.
-- Deliberate placement-error fixture: old model and inventory state restored; temporary staging folder removed.
-- Invalid destination, NaN ID, missing animal and teleport while carrying were rejected.
-- Desktop screenshots: locked/unlocked Index, both worlds, empty/filled Pets. iPhone 17 Pro simulator: landscape and portrait visual previews; compact row layout and safe margins inspected. Studio mouse automation did not correctly target phone buttons, so phone interaction itself was not verified.
-- Fresh desktop Play sessions had clean console output. All fixtures were temporary and removed by stopping Play. Studio returned to Edit/default viewport.
+QAStarterGameUI retains the ranking/cap/rollback mock regression. QAUIAnimation.client tests transition interruption, opacity/caption restoration and fixed centered layout slots. Both are manual fixtures.
 
-Backups: ServerStorage.StarterGuiBackup_20261008 contains the original GameUI and affected scripts (backup scripts disabled). Save/publish the Studio place separately from Git.
-
-## Shared UI motion
-
-`UIMotion.lua` is installed as ReplicatedStorage.UIMotion. AnimalMenuClient binds the GameUI buttons once, including buttons created later, and calls SetFrame for Index/Pets. Hover/focus uses 1.035 scale; press uses 0.95; releases return smoothly. Frames open with a 0.22-second scale/slide and 0.18-second fade, and close in 0.12 seconds. The original hierarchy, sizes and transparency values are preserved. Grid measurements exclude the temporary animation scale so layouts stay stable.
-
-Tweens cancel when superseded, closing callbacks use revisions, removed buttons release state, and no idle animation loop is added. A runtime regression LocalScript is provided as QAUIAnimation.client.lua; install it temporarily to test interrupted open/close, opacity restoration and position reset. Studio's copy is disabled in ServerStorage.UIMotionBackup_20261008.
-
-Verified in Play: hover, held press, release outside the button, new pet action hover, Index/Pets switch and Close, rapid real clicks, interrupted transitions and stable Desert card sizing. Final console clean; Studio returned to Edit.
-
-Concurrent live Studio additions (PrettyName, new worlds/Secret cards and carry text) were preserved while applying motion. The local controller contains only the motion changes against the recorded repo version; merge concurrent gameplay changes before replacing the full live controller from this branch. The Secret name-gradient lookup in live Studio was corrected to retrieve the Name label rather than the instance's Name string. This task does not change AnimalData or UIStyle.
+Final Play console was clean. Temporary fixtures were discarded and Studio returned to Edit mode. Backup: ServerStorage.PetsCameraBackup_20261009. Save/publish the Studio place separately from Git.

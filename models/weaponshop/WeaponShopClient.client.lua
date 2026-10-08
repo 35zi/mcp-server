@@ -58,6 +58,7 @@ end)
 
 ---------------------------------------------------------------- UI (look: ReplicatedStorage.UIStyle)
 local UIStyle = require(ReplicatedStorage:WaitForChild("UIStyle"))
+local motion = require(ReplicatedStorage:WaitForChild("UIMotion"))
 local make, text = UIStyle.make, UIStyle.text
 local EMPTY = Color3.fromRGB(120, 72, 30)
 
@@ -745,6 +746,8 @@ function leaveShop(teleportOut)
 		finish()
 	end
 end
+
+motion.BindButtons(gui)
 
 ---------------------------------------------------------------- buttons
 leftButton.Activated:Connect(function()
