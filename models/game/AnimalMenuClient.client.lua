@@ -5,12 +5,14 @@
 --            the rest are black silhouettes ("???"). Reads player attributes Caught_<Species> (set by AnimalCarry).
 --   * Bag    your animals (player.AnimalInventory, InventoryAdapter): Hold it in your hand, Place it on your plot,
 --            take it back. Asks the server through ReplicatedStorage.AnimalInventoryRemote (InventoryService).
--- A red "!" badge shows on a tile when something new is in it. Plus a banner while you carry a dead animal
--- ("bring it over the red line"). While a menu is open the ScreenGui attribute Open is true, so WeaponClient puts the
+-- A red "!" badge shows on a tile when something new is in it. Plus a banner while you carry a stunned animal
+-- ("bring it over the red line", with a Drop button / G key). While a menu is open the ScreenGui attribute Open is
+-- true, so WeaponClient puts the
 -- gun aside and shows the cursor.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ContentProvider = game:GetService("ContentProvider")
+local ContextActionService = game:GetService("ContextActionService")
 
 local player = Players.LocalPlayer
 local AnimalData = require(ReplicatedStorage:WaitForChild("AnimalData"))
@@ -394,7 +396,7 @@ end
 local carryBanner = make("Frame", {
 	AnchorPoint = Vector2.new(0.5, 0),
 	Position = UDim2.new(0.5, 0, 0, 12),
-	Size = UDim2.fromOffset(640, 54),
+	Size = UDim2.fromOffset(740, 56),
 	BackgroundColor3 = Color3.new(1, 1, 1),
 	Visible = false,
 	Parent = gui,
@@ -402,7 +404,30 @@ local carryBanner = make("Frame", {
 UIStyle.corner(carryBanner, 14)
 UIStyle.stroke(carryBanner, 3)
 UIStyle.gradient(carryBanner, ColorSequence.new(Color3.fromRGB(255, 104, 40), Color3.fromRGB(255, 196, 56)), 0)
-local carryText = text({ Size = UDim2.fromScale(1, 1), Text = "", TextSize = 24, Parent = carryBanner })
+local carryText = text({ Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -170, 1, 0), Text = "", TextSize = 24, Parent = carryBanner })
+
+-- put it down (G / the button / gamepad Y): its stun timer starts over and it wakes up if you leave it (AnimalCarry)
+local animalEvent = ReplicatedStorage:WaitForChild("AnimalEvent")
+local function dropIt()
+	animalEvent:FireServer("Drop")
+end
+local dropButton = UIStyle.button({
+	AnchorPoint = Vector2.new(1, 0.5),
+	Position = UDim2.new(1, -10, 0.5, 0),
+	Size = UDim2.fromOffset(140, 42),
+	Text = "Drop (G)",
+	TextSize = 20,
+	Color = C.Red,
+	Parent = carryBanner,
+})
+dropButton.Activated:Connect(dropIt)
+local function dropAction(_, state)
+	if state == Enum.UserInputState.Begin then
+		dropIt()
+	end
+	return Enum.ContextActionResult.Sink
+end
+
 local function updateCarry()
 	local carrying = player:GetAttribute("Carrying")
 	local show = carrying ~= nil
@@ -412,6 +437,9 @@ local function updateCarry()
 	carryBanner.Visible = show
 	if carrying then
 		carryText.Text = string.format("🐾 Carrying %s  →  take it over the RED LINE!", carrying)
+		ContextActionService:BindAction("DropAnimal", dropAction, false, Enum.KeyCode.G, Enum.KeyCode.ButtonY)
+	else
+		ContextActionService:UnbindAction("DropAnimal")
 	end
 end
 player:GetAttributeChangedSignal("Carrying"):Connect(updateCarry)

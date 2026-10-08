@@ -4,8 +4,8 @@
 --   * a small dust puff + a couple of leaf flicks under an animal every time it takes off or lands
 --   * when an animal is hit: a quick white flash on it and a squeak
 --   * when an animal is brought home or despawns: a poof (gold sparkles for gold ones)
---   * "<animal> down!" hint for the shooter, then "CAUGHT!" popup + cash-register sound once it's carried over the
---     red line (AnimalCarry)
+--   * "<animal> STUNNED!" hint for the shooter, then "CAUGHT!" popup + cash-register sound once it's carried over the
+--     red line (AnimalCarry); stunned animals show wobbling stars and a countdown until they wake up
 --   * pick-up prompts on dead animals and plot animals only show for their owner
 --   * a banner for everyone when a Legendary or a Gold / Silver animal appears
 --   * a small HUD (bottom left): time until the next wave, animals in your bag + plot income, your Cash
@@ -384,7 +384,7 @@ animalEvent.OnClientEvent:Connect(function(kind, data)
 		caughtPopup(data)
 		playSound("Catch", nil, 1, (data.mutation == "Gold" or data.rarity == "Legendary") and 1.2 or 1)
 	elseif kind == "Killed" then
-		banner(string.format("%s down! Pick it up (E)", string.upper(AnimalData.DisplayName(data.species, data.size, data.mutation))), WHITE, 3)
+		banner(string.format("💫 %s STUNNED! Grab it (E) before it wakes up!", string.upper(AnimalData.DisplayName(data.species, data.size, data.mutation))), WHITE, 3)
 	elseif kind == "Notice" then
 		banner(data.text, WHITE, 2.5)
 	elseif kind == "Mutation" then
@@ -432,6 +432,78 @@ for _, name in ipairs({ "AnimalBodies", "PlotAnimals" }) do
 		end
 	end)
 end
+
+---------------------------------------------------------------- stunned animals: wobbling stars + wake-up countdown
+-- A shot-down animal lying in Workspace.AnimalBodies has attribute StunEnd (server time it wakes up, AnimalCarry).
+local STUN_TIME = AnimalData.StunTime or 10
+local TIMER_FULL, TIMER_EMPTY = Color3.fromRGB(255, 214, 51), Color3.fromRGB(235, 64, 52)
+local stunTags = {} -- [model] = { gui, fill, stars }
+
+local function stunTag(model)
+	if stunTags[model] or not model.PrimaryPart then
+		return
+	end
+	local gui = make("BillboardGui", {
+		Name = "StunTag",
+		Adornee = model.PrimaryPart,
+		Size = UDim2.fromOffset(110, 48),
+		StudsOffsetWorldSpace = Vector3.new(0, 2.6, 0),
+		LightInfluence = 0,
+		MaxDistance = 90,
+		ResetOnSpawn = false,
+		Parent = player:WaitForChild("PlayerGui"),
+	})
+	local stars = text({ Size = UDim2.new(1, 0, 0, 28), Text = "💫💫💫", TextSize = 24, Stroke = 0, Parent = gui })
+	local bar = make("Frame", {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -3),
+		Size = UDim2.fromOffset(86, 12),
+		BackgroundColor3 = Color3.fromRGB(40, 34, 46),
+		Parent = gui,
+	})
+	UIStyle.corner(bar, 6)
+	UIStyle.stroke(bar, 2.5)
+	local fill = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = TIMER_FULL, BorderSizePixel = 0, Parent = bar })
+	UIStyle.corner(fill, 6)
+	stunTags[model] = { gui = gui, fill = fill, stars = stars }
+end
+
+local function watchBody(model)
+	if not model:IsA("Model") then
+		return
+	end
+	model:GetAttributeChangedSignal("StunEnd"):Connect(function()
+		if model:GetAttribute("StunEnd") and model.Parent then
+			stunTag(model)
+		end
+	end)
+	if model:GetAttribute("StunEnd") then
+		stunTag(model)
+	end
+end
+
+task.spawn(function()
+	local bodiesFolder = workspace:WaitForChild("AnimalBodies")
+	bodiesFolder.ChildAdded:Connect(watchBody)
+	for _, model in ipairs(bodiesFolder:GetChildren()) do
+		watchBody(model)
+	end
+	RunService.RenderStepped:Connect(function()
+		local now = workspace:GetServerTimeNow()
+		for model, tag in pairs(stunTags) do
+			local stunEnd = model:GetAttribute("StunEnd")
+			if not stunEnd or model.Parent ~= bodiesFolder then
+				tag.gui:Destroy() -- picked up, woke up or brought home
+				stunTags[model] = nil
+			else
+				local left = math.clamp((stunEnd - now) / STUN_TIME, 0, 1)
+				tag.fill.Size = UDim2.fromScale(left, 1)
+				tag.fill.BackgroundColor3 = TIMER_EMPTY:Lerp(TIMER_FULL, left)
+				tag.stars.Rotation = math.sin(os.clock() * 5) * 14
+			end
+		end
+	end)
+end)
 
 ---------------------------------------------------------------- carriers: the right arm holds the animal on the shoulder
 -- Anyone carrying (player attribute Carrying, set by AnimalCarry) gets their right arm posed right after the

@@ -96,6 +96,22 @@ local SPECS = {
 	},
 	{
 		id = "AutomaticRifle", name = "Automatic Rifle", source = "automatic_rifle", length = 4.8, forward = NEG_X,
+		-- the imported iron sights are chunky blocks: make a slim front post and thin rear ears with an open notch
+		slim = function(m)
+			local hood = find(m, "AutomaticRifle_Front_Sight_Hood")
+			local function thin(p, across) -- each sight part's own Z runs across the gun
+				p.Size = Vector3.new(p.Size.X, p.Size.Y, across)
+			end
+			thin(hood, 0.045)
+			thin(find(m, "AutomaticRifle_Front_Sight_Base"), 0.045)
+			for _, name in ipairs({ "AutomaticRifle_Rear_Sight_Notch_1", "AutomaticRifle_Rear_Sight_Notch_-1" }) do
+				local ear = find(m, name)
+				thin(ear, 0.026)
+				local rel = hood.CFrame:PointToObjectSpace(ear.Position)
+				local spot = hood.CFrame:PointToWorldSpace(Vector3.new(rel.X, rel.Y, math.sign(rel.Z) * 0.12))
+				ear.CFrame = CFrame.new(spot) * ear.CFrame.Rotation
+			end
+		end,
 		points = function(m, F)
 			local n1, n2 = find(m, "AutomaticRifle_Rear_Sight_Notch_1"), find(m, "AutomaticRifle_Rear_Sight_Notch_-1")
 			return {
@@ -142,6 +158,9 @@ for _, spec in ipairs(SPECS) do
 	local _, size = model:GetBoundingBox()
 	local length = math.abs(F.X) * size.X + math.abs(F.Y) * size.Y + math.abs(F.Z) * size.Z
 	model:ScaleTo(model:GetScale() * spec.length / length)
+	if spec.slim then
+		spec.slim(model)
+	end
 
 	local pts = spec.points(model, F)
 	local isIron = not spec.scope

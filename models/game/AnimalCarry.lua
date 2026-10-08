@@ -1,13 +1,17 @@
--- AnimalCarry (ModuleScript in ServerScriptService; AnimalManager hands it dead animals, AnimalSpawner starts it)
+-- AnimalCarry (ModuleScript in ServerScriptService; AnimalManager hands it knocked-out animals, AnimalSpawner starts it)
 --
--- What happens after an animal is shot dead:
---   1. it topples over and lies on the ground in Workspace.AnimalBodies (no money is paid)
---   2. only the player who killed it can pick it up (ProximityPrompt, E) - you carry one at a time, slung over your
---      right shoulder (hanging head-down your back, your right arm raised holding it; tools are put away meanwhile)
+-- What happens when an animal is shot down (its health reaches 0):
+--   1. it isn't dead, it's STUNNED: it topples over and lies in Workspace.AnimalBodies for STUN_TIME seconds
+--      (model attribute StunEnd = server time it wakes up; AnimalClient shows stars + a countdown). No money is paid.
+--   2. only the player who shot it can pick it up (ProximityPrompt, E) - you carry one at a time, slung over your
+--      right shoulder (hanging head-down your back, your right arm raised holding it; tools are put away meanwhile).
+--      Picking it up stops the timer. Drop it (G / the Drop button, or by dying) and the timer starts over.
 --   3. carry it over the red line (Workspace.RedLine, back towards the plots) and it goes into your inventory
 --      (InventoryAdapter) and unlocks it in your Index (player attribute Caught_<Species> = how many you brought home)
--- If you die while carrying, it drops where you died. Bodies nobody picks up vanish after BODY_LIFETIME seconds.
+--   4. if the timer runs out first, it stands back up and runs off: AnimalManager.Revive (registered via OnRevive)
+--      makes it a live animal again, full health.
 -- Player attribute Carrying = the name of what you carry (for the client's banner).
+--   Remote: ReplicatedStorage.AnimalEvent  client -> server  FireServer("Drop")  put down what you carry
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -17,7 +21,8 @@ local InventoryAdapter = require(script.Parent:WaitForChild("InventoryAdapter"))
 
 local AnimalCarry = {}
 
-local BODY_LIFETIME = 120 -- seconds an uncollected body stays
+local STUN_TIME = AnimalData.StunTime or 10 -- seconds a stunned animal lies there before it wakes up (restarts when dropped)
+local STANDUP_TIME = 0.4
 local PICKUP_DISTANCE = 12
 local MAX_CARRY_SIZE = 3.6 -- studs: bigger bodies are shrunk while carried so they fit on your shoulder
 local TOPPLE_TIME = 0.3
@@ -35,9 +40,10 @@ if not animalEvent then
 	animalEvent.Parent = ReplicatedStorage
 end
 
-local bodies = {} -- [model] = body
+local bodies = {} -- [model] = body (lying stunned or being carried)
 local carrying = {} -- [player] = body
 local started = false
+local reviveHandler = nil -- AnimalManager.Revive
 
 ---------------------------------------------------------------- the red line
 local line, lineNormal, homeSign
@@ -144,7 +150,7 @@ local function addPrompt(body)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "PickUp"
 	prompt.ActionText = "Pick up"
-	prompt.ObjectText = displayName(body.info)
+	prompt.ObjectText = "Stunned " .. displayName(body.info)
 	prompt.HoldDuration = 0.25
 	prompt.MaxActivationDistance = PICKUP_DISTANCE
 	prompt.RequiresLineOfSight = false
@@ -185,11 +191,65 @@ local function layDown(body, position, animate)
 	else
 		moveParts(info, groundPose(info, pos, info.yaw, 1))
 	end
-	body.expires = os.clock() + BODY_LIFETIME
+	-- the stun timer (re)starts whenever it is put down
+	body.expires = os.clock() + STUN_TIME
+	body.model:SetAttribute("StunEnd", workspace:GetServerTimeNow() + STUN_TIME)
 	addPrompt(body)
 end
 
--- AnimalManager: this animal was just killed by `owner`
+-- the timer ran out: it gets back up (the reverse of toppling) and AnimalManager makes it a live animal again
+local function wakeUp(body)
+	bodies[body.model] = nil
+	local model, info = body.model, body.info
+	if body.prompt then
+		body.prompt:Destroy()
+		body.prompt = nil
+	end
+	model:SetAttribute("StunEnd", nil)
+	task.spawn(function()
+		local t0 = os.clock()
+		while model.Parent do
+			local t = math.min((os.clock() - t0) / STANDUP_TIME, 1)
+			moveParts(info, groundPose(info, body.pos, info.yaw, 1 - t * t))
+			if t >= 1 then
+				break
+			end
+			RunService.Heartbeat:Wait()
+		end
+		if not model.Parent then
+			return
+		end
+		model:SetAttribute("Dead", nil)
+		model:SetAttribute("OwnerUserId", nil)
+		local owner = Players:GetPlayerByUserId(body.ownerId)
+		if owner then
+			notify(owner, displayName(info) .. " woke up and ran off!")
+		end
+		if reviveHandler then
+			reviveHandler(model, info, body.pos)
+		else
+			model:Destroy()
+		end
+	end)
+end
+
+-- AnimalManager: who brings animals back to life when they wake up
+function AnimalCarry.OnRevive(handler)
+	reviveHandler = handler
+end
+
+-- stunned animals (lying or carried) that belong to this spawn zone; they still count towards its population
+function AnimalCarry.CountForZone(zone)
+	local n = 0
+	for _, body in pairs(bodies) do
+		if body.info.zone == zone then
+			n += 1
+		end
+	end
+	return n
+end
+
+-- AnimalManager: this animal was just shot down (stunned) by `owner`
 function AnimalCarry.AddBody(model, info, owner)
 	local body = { model = model, info = info, ownerId = owner.UserId }
 	bodies[model] = body
@@ -228,6 +288,8 @@ pickUp = function(player, body)
 	end
 
 	body.carried = true
+	body.expires = nil -- the stun timer stops while it's carried
+	body.model:SetAttribute("StunEnd", nil)
 	carrying[player] = body
 	if body.prompt then
 		body.prompt:Destroy()
@@ -279,7 +341,8 @@ local function endCarry(body)
 	end
 end
 
--- put down what the player carries where they stand (death, respawn); destroy = they left the game
+-- put down what the player carries where they stand (Drop key, death, respawn) - its stun timer starts over;
+-- destroy = remove it altogether
 local function drop(player, destroy)
 	local body = carrying[player]
 	if not body then
@@ -377,12 +440,20 @@ function AnimalCarry.Start()
 		onPlayer(player)
 	end
 	Players.PlayerRemoving:Connect(function(player)
-		drop(player, true)
-		for model, body in pairs(bodies) do
+		drop(player)
+		for _, body in pairs(bodies) do
 			if body.ownerId == player.UserId and not body.carried then
-				bodies[model] = nil
-				model:Destroy()
+				body.expires = os.clock() -- nobody can pick these up any more: they wake up right away
 			end
+		end
+	end)
+
+	-- the Drop key / button (AnimalMenuClient)
+	local lastDrop = {}
+	animalEvent.OnServerEvent:Connect(function(player, kind)
+		if kind == "Drop" and carrying[player] and os.clock() - (lastDrop[player] or 0) > 0.5 then
+			lastDrop[player] = os.clock()
+			drop(player)
 		end
 	end)
 
@@ -396,16 +467,14 @@ function AnimalCarry.Start()
 		end
 	end)
 
-	-- old bodies vanish
+	-- stunned animals nobody picked up wake up
 	task.spawn(function()
 		while true do
-			task.wait(1)
+			task.wait(0.25)
 			local now = os.clock()
-			for model, body in pairs(bodies) do
-				if not body.carried and body.expires and now > body.expires then
-					bodies[model] = nil
-					animalEvent:FireAllClients("Despawn", { position = body.pos + Vector3.new(0, 1, 0), mutation = body.info.mutation, scale = 1 })
-					model:Destroy()
+			for _, body in pairs(bodies) do
+				if not body.carried and body.expires and now >= body.expires then
+					wakeUp(body)
 				end
 			end
 		end

@@ -11,6 +11,9 @@
 --               walk = true  scuttles/walks instead of hopping (no dust puff on every step)
 local AnimalData = {}
 
+-- seconds a shot-down animal stays stunned before it wakes up again (restarts each time it's dropped)
+AnimalData.StunTime = 10
+
 -- size of each size class (must match AnimalManager's SIZES) and what size / mutation do to plot income
 AnimalData.SizeScale = { Small = 0.75, Medium = 1, Large = 1.35 }
 AnimalData.SizeIncome = { Small = 0.8, Medium = 1, Large = 1.5 }

@@ -16,8 +16,9 @@
 -- Species: picked by rarity inside the zone's world (Common is almost guaranteed, Legendary is rare).
 -- Sizes: each spawn rolls Small / Medium / Large (scale, HP and value change with it).
 -- Mutations (rare): Gold = gold tint + sparkles + outline + 5x value; Silver = silver tint + 30% more HP.
--- Killing: when Health reaches 0 the animal drops dead; AnimalCarry takes over the body (pick up, carry over the
--- red line, then it goes into the inventory). No money is paid out here.
+-- Shooting it down: when Health reaches 0 the animal is STUNNED (not dead); AnimalCarry takes over (pick up, carry
+-- over the red line, then it goes into the inventory). If nobody does that in time it wakes up: Revive() makes it a
+-- live animal again with full health. Stunned animals still count towards their zone's Population. No money here.
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -498,7 +499,7 @@ local function wave()
 	end
 	for _, zone in ipairs(zonesFolder:GetChildren()) do
 		if zone:IsA("BasePart") then
-			local alive = 0
+			local alive = AnimalCarry.CountForZone(zone) -- stunned ones will wake up again
 			for _, record in pairs(records) do
 				if record.zone == zone then
 					alive += 1
@@ -529,6 +530,19 @@ end
 local function startWander(record, awayFrom)
 	local cfg = record.cfg
 	local scale = record.size.scale
+	if not insideZone(record.zone, record.pos) then
+		-- outside its home (it woke up where it was dropped): hop straight back into its zone
+		local p = record.zone.CFrame:PointToObjectSpace(record.pos)
+		local hx, hz = zoneBounds(record.zone)
+		local inside = record.zone.CFrame:PointToWorldSpace(Vector3.new(math.clamp(p.X, -hx + 2, hx - 2), 0, math.clamp(p.Z, -hz + 2, hz - 2)))
+		local delta = Vector3.new(inside.X - record.pos.X, 0, inside.Z - record.pos.Z)
+		record.hopsLeft = math.max(1, math.ceil(delta.Magnitude / (cfg.hopDist * scale)))
+		record.step = delta / record.hopsLeft
+		record.targetYaw = math.atan2(-delta.X, -delta.Z)
+		record.state, record.stateT = "turn", 0
+		record.fleeing = true
+		return
+	end
 	for attempt = 1, 14 do
 		local ang, dist
 		if awayFrom and attempt <= 8 then
@@ -661,7 +675,7 @@ function AnimalManager.Position(record)
 	return record.pos + Vector3.new(0, record.height / 2, 0)
 end
 
--- damage an animal; returns "hit" or "killed"
+-- damage an animal; returns "hit" or "killed" ("killed" = shot down: it is now stunned, see AnimalCarry)
 function AnimalManager.Damage(record, amount, player, hitPos)
 	if record.dead then
 		return "none"
@@ -671,7 +685,7 @@ function AnimalManager.Damage(record, amount, player, hitPos)
 	animalEvent:FireAllClients("Hit", { model = record.model, position = hitPos, scale = record.size.scale })
 
 	if record.health <= 0 then
-		-- it drops dead where it stands; the shooter has to pick it up and carry it home (AnimalCarry)
+		-- it drops stunned where it stands; the shooter has to pick it up and carry it home (AnimalCarry)
 		records[record.model] = nil
 		record.dead = true
 		local tag = record.model.PrimaryPart and record.model.PrimaryPart:FindFirstChild("AnimalTag")
@@ -692,6 +706,8 @@ function AnimalManager.Damage(record, amount, player, hitPos)
 			length = record.length,
 			pos = record.pos,
 			yaw = record.yaw,
+			zone = record.zone,
+			maxHealth = record.maxHealth,
 		}, player)
 		return "killed"
 	end
@@ -721,5 +737,75 @@ end
 function AnimalManager.ForceWave()
 	wave()
 end
+
+-- AnimalCarry: a stunned animal nobody carried home woke up at `position`; it becomes a live animal again (full
+-- health, back in its own zone) and runs away from whoever is closest
+function AnimalManager.Revive(model, info, position)
+	local zone = info.zone
+	if not (zone and zone.Parent) then
+		for _, z in ipairs(zonesFolder:GetChildren()) do
+			if z:IsA("BasePart") and (z:GetAttribute("World") or 1) == info.world then
+				zone = z
+				break
+			end
+		end
+	end
+	local cfg = SPECIES[info.species]
+	if not zone or not cfg or not model.Parent then
+		model:Destroy()
+		return
+	end
+	for _, p in ipairs(info.parts) do
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanTouch = false
+		p.CanQuery = true
+		p.Massless = false
+	end
+	local maxHealth = info.maxHealth or cfg.hp
+	model:SetAttribute("Health", maxHealth)
+	local record = {
+		model = model,
+		species = info.species,
+		cfg = cfg,
+		size = sizeByName(info.size),
+		mutation = info.mutation,
+		zone = zone,
+		worldId = info.world,
+		parts = info.parts,
+		offsets = info.offsets,
+		height = info.height,
+		width = info.width,
+		length = info.length,
+		pos = position,
+		yaw = info.yaw,
+		targetYaw = info.yaw,
+		state = "idle",
+		stateT = 0,
+		idleDur = 0.2,
+		hopsLeft = 0,
+		step = Vector3.zero,
+		hopFrom = position,
+		hopTo = position,
+		hops = 0,
+		health = maxHealth,
+		maxHealth = maxHealth,
+		value = info.value,
+		wave = waveNumber,
+		clock = rng:NextNumber(0, 10),
+	}
+	makeTag(record)
+	records[model] = record
+	model.Parent = animalsFolder
+	local nearest, best = nil, 40
+	for _, player in ipairs(Players:GetPlayers()) do
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if root and (root.Position - position).Magnitude < best then
+			nearest, best = root.Position, (root.Position - position).Magnitude
+		end
+	end
+	startWander(record, nearest)
+end
+AnimalCarry.OnRevive(AnimalManager.Revive)
 
 return AnimalManager

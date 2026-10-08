@@ -31,7 +31,7 @@ return {
 	AutomaticRifle = {
 		Fov = 50, Kick = 0.4, Pitch = 1.2, Volume = 0.7, Automatic = true, Cycle = "charge",
 		Slide = "^AutomaticRifle_Charging_Handle$", SlideAmount = 0.18,
-		SightLift = 0.09, EyeBack = 0.3,
+		SightLift = 0.09, EyeBack = 0.8,
 	},
 	BoltSniper = {
 		Fov = 16, Kick = 1.4, Pitch = 0.72, Volume = 1.0, Scope = true, Cycle = "bolt",
