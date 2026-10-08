@@ -165,7 +165,7 @@ local function hold(player, item)
 	if not backpack or not humanoid or humanoid.Health <= 0 then
 		return false, "Can't hold it right now"
 	end
-	local tool = makeHoldTool(player, item)
+	local tool = findHeldTool(player, item:GetAttribute("Id")) or makeHoldTool(player, item)
 	if not tool then
 		return false, "This animal has no model"
 	end
@@ -389,6 +389,20 @@ remote.OnServerInvoke = function(player, action, id)
 	end
 	return success, message
 end
+
+-- Bag/Held pets use the built-in Backpack; the Pets panel lists only Plot pets.
+local PetBackpack=require(ReplicatedStorage:WaitForChild("PetBackpack"))
+local backpackCleanup={}
+local function attachBackpack(player)
+ backpackCleanup[player]=PetBackpack.Start(player,{
+  CreateTool=makeHoldTool,FindTool=findHeldTool,Place=placeOnPlot,Plot=plotOf,
+ })
+end
+Players.PlayerAdded:Connect(attachBackpack)
+for _,player in Players:GetPlayers() do attachBackpack(player) end
+Players.PlayerRemoving:Connect(function(player)
+ if backpackCleanup[player] then backpackCleanup[player]() backpackCleanup[player]=nil end
+end)
 
 ---------------------------------------------------------------- plot income
 local function signLabel(plot)

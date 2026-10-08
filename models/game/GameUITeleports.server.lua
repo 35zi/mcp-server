@@ -42,8 +42,14 @@ remote.OnServerInvoke=function(player,destination)
   local zone=view and view:FindFirstChild("ShopZone")
   local preview=view and view:FindFirstChild("PreviewSpot")
   if not zone then return false,"The weapon shop isn't ready." end
-  position=zone.Position
-  look=preview and (preview.Position-zone.Position) or Vector3.new(0,0,-1)
+  local exit=view:FindFirstChild("ExitPoint")
+  local entrance=exit and exit.Position or zone.Position+Vector3.new(0,0,zone.Size.Z/2+4)
+  local outward=Vector3.new(entrance.X-zone.Position.X,0,entrance.Z-zone.Position.Z)
+  if outward.Magnitude<.01 then outward=Vector3.new(0,0,1) end
+  -- Land outside the activation ring and face the counter.
+  local radius=zone.Size.Z/2
+  position=zone.Position+outward.Unit*math.max(outward.Magnitude,radius+4)
+  look=preview and (preview.Position-position) or -outward
   if destination=="Speed" then
    local spawn=workspace:FindFirstChild("SpawnLocation")
    local centre=spawn and spawn.Position.X or 0
