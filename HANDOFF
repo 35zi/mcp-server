@@ -171,3 +171,10 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Status: done — playtested in Studio: wave 1 spawns 12 animals at the right sizes (fixed: imported meshes are stored at Scale 0.017, so sizes now scale relative to that); Gold + Silver spawns seen; buy all 5 guns via the real remote (re-buy refused), equip each; aim dot follows the mouse exactly; ADS sight picture checked on all 5 (front sight tip at screen centre; sniper scope overlay); camera returns to third person with no snap; hits confirmed by the server (kind=animal), Large Bunny caught in 3 Python shots, Small Gold Mouse caught -> popup "Worth $32 • +$32 Cash!" and Cash +32, inventory + bag count update; automatic rifle fires 5 shots in 1.25 s (0.3 s cooldown) all accepted; console clean.
   PLACEHOLDERS for Codex: Cash = leaderstats.Cash (starts 100) behind ServerScriptService.CashAdapter (Setup/Get/Spend/Add); caught animals = Folders under player.AnimalInventory (attributes Species, Size, Mutation, Value, CaughtAt) behind InventoryAdapter (Add/List) — swap these two modules for the real economy / inventory (sell, keep in plot). Nothing is saved (no DataStore). Prices/stats of the 4 new guns are my picks (Revolver $250, Shotgun $600, Automatic Rifle $1500, Sniper $3000). Squirrel is configured but has no model. Place not saved by me — save in Studio.
 - Link: https://github.com/35zi/mcp-server/commit/dd05783
+
+## Claude — 2026-10-08 02:23 UTC
+- Task: Repo sync: merged origin/main into claude/bunny-model (game concept note + AGENTS.md line; HANDOFF conflict resolved keeping both), and added a setup script for the Studio-only pieces (GameAudio sounds, AnimalTemplates, AnimalSpawnZones.Zone1) so the place can be rebuilt from the repo.
+- Files: models/game/SetupGameWorld.lua (new), HANDOFF
+- Branch: claude/bunny-model
+- Status: done — script compile-checked in Studio; its values were read from the live place. Not re-run (the place already has everything).
+- Link: https://github.com/35zi/mcp-server/commit/4aa6d23
