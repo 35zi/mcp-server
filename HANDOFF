@@ -112,5 +112,5 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Task: Redo the five small animals (Frog, Mouse, Squirrel, Hedgehog, Duckling) in the owner's reference style: chunky beveled-block, hard-edged, flat-colour "voxel creature" look (not smooth blobs), more detail than the first block version. Blender script → FBX/OBJ + previews. Replaces the smooth set as the preferred version.
 - Files: models/blender/animals/small_animals_blocky.py and models/blender/animals/out_blocky/* (new)
 - Branch: claude/bunny-model
-- Status: in progress
-- Link: n/a
+- Status: done — Frog 1.8k tris, Mouse 1.1k, Squirrel 1.5k, Hedgehog 1.9k, Duckling 1.1k; beveled-box/spike style per the owner's reference images (square eyes with catch-lights, big toes, stepped squirrel tail, two-tone pyramid hedgehog spines). FBX + OBJ per animal (feet on z=0, facing +Y, materials + vertex colours), Small_Animals_Blocky.blend, Cycles previews. This is now the PREFERRED set (smooth set in out/ is the alternative). NOT imported into Studio yet — import needs the owner to run Studio's Asset Manager > Bulk Import; then swap them for Workspace.SmallAnimals. Blender MCP is connected on the Claude side but calls timed out; the headless script route was used.
+- Link: https://github.com/35zi/mcp-server/commit/5677899
