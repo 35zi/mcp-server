@@ -36,7 +36,7 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Files: Studio place only (Workspace.Bunny); no repo files changed. Place edits are NOT in git, so save/publish the place from Studio to share them.
 - Branch: claude/bunny-model
 - Status: done — checked visually in Studio edit mode, not playtested. Codex: the place already had a map (green slab top at Y=2, walls); I touched none of it.
-- Link: n/a
+- Link: https://github.com/35zi/mcp-server/commit/0620f14
 
 ## Claude — 2026-10-07 22:48 UTC
 - Task: Bunny hop-only walk + idle animation (server script inside Workspace.Bunny, animates anchored Parts)
@@ -98,12 +98,12 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Task: Small-animal models in the bunny's style — Frog, Mouse, Squirrel, Hedgehog, Duckling (anchored plastic Parts, feet on the ground, facing -Z). Models only: no animation/behaviour scripts yet.
 - Files: models/BuildSmallAnimals.lua (new). Studio: new folder Workspace.SmallAnimals (5 Models) in the green area past the red line, near the far wall (z about -127). Bunny and everything else untouched.
 - Branch: claude/bunny-model
-- Status: in progress
-- Link: n/a
+- Status: done — block-style version built in Studio as Workspace.SmallAnimals (5 Models); the owner called it low quality, so it is SUPERSEDED by the Blender versions (see the next entry). Safe to delete Workspace.SmallAnimals once the Blender meshes are imported.
+- Link: https://github.com/35zi/mcp-server/commit/0620f14
 
 ## Claude — 2026-10-08 00:28 UTC
 - Task: Higher-detail Blender versions of the five small animals (Frog, Mouse, Squirrel, Hedgehog, Duckling) — smooth sculpted meshes instead of stacked blocks, headless Blender 5.2 script, exported FBX/OBJ per animal + previews. Not imported into Studio yet.
 - Files: models/blender/animals/small_animals.py and models/blender/animals/out/* (new)
 - Branch: claude/bunny-model
-- Status: in progress
-- Link: n/a
+- Status: done — five detailed smooth cartoon animals modelled in Blender 5.2 (headless script): Frog 7.4k tris, Mouse 5.7k, Squirrel 8.1k, Hedgehog 6.6k, Duckling 4.5k. Each exported as FBX + OBJ (feet on z=0, facing +Y, vertex colours + materials) plus Small_Animals.blend and Cycles preview renders. NOT imported into Studio (needs the Studio 3D Importer / Asset Manager bulk import; check that vertex colours survive and set MeshPart Size if the scale is off). Not wired to any behaviour.
+- Link: https://github.com/35zi/mcp-server/commit/0620f14
