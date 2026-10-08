@@ -242,3 +242,36 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Files: models/game/AnimalMenuClient.client.lua (Index section only; Bag untouched).
 - Branch: claude/bunny-model
 - Status: done — Forest tab checked on screen, console clean (Desert tab/scroll not clicked through in the playtest). Place not saved by me — save in Studio.
+
+## Codex — shared animal rigs and animations
+- Task: rig/weld all 11 ServerStorage.AnimalTemplates animals, with reusable idle/gait families inspired by BunnyBrain.
+- Branch: codex/animal-rigs, based on Claude's latest gameplay branch. Claude's concurrent Vulture/spawn updates were merged; Index updates remain separate and untouched.
+- Files: models/game/AnimalRig.lua, AnimalAnimationClient.client.lua, RigAnimalTemplates.server.lua, QAAnimalRigs.server.lua, ANIMAL_ANIMATIONS.md; focused movement/attachment changes to AnimalManager.lua, AnimalCarry.lua, InventoryService.server.lua, PlotAnimalsClient.client.lua.
+- Studio: ReplicatedStorage.AnimalRig; StarterPlayerScripts.AnimalAnimationClient; ServerScriptService.RigAnimalTemplates; template AnimalJoints folders (Motor6D + Weld), one anchored body each. Original models/scripts are backed up under ServerStorage.AnimalAnimationBackup_20261008.
+- Status: complete in Studio Edit mode. 379 pieces / 368 joints; three sizes per species passed (33 rigs / 1137 pieces / 1104 joints); all 11 idle/gait poses checked on client; hold + plot remotes checked for five species; real stunned Spider pickup, drop, revival and delivery passed. Final fresh Play output contained only QA PASS.
+- Integration: root-only batched movement, client Motor6D.Transform poses with distance LOD, atomic streaming; one external hold/carry weld. Non-hoppers use a ground gait. Preserve these changes when updating AnimalManager/AnimalCarry/InventoryService/PlotAnimalsClient. No economy, spawn-weight, map, or UI changes in this task.
+- Save the Studio place separately. This source branch does not publish it.
+
+## Codex — StarterGui Index, Pets and teleports
+- Task: owner's new GameUI replaces the old Index/Bag/HUD; add equipped pets, Equip Best, earnings per second and Base/Weapons/Speed destinations. Existing weapon shop kept.
+- Branch: local codex/startergui-index-pets, including completed animal rigs; based on Claude's latest gameplay commit a30c942. Git fetch at completion found no newer Claude work.
+- Files: models/game/BuildStarterGameUI.lua, AnimalMenuClient.client.lua, EquipBestService.lua, GameUITeleports.server.lua, InventoryService.server.lua, AnimalClient.client.lua, STARTER_GAME_UI.md; models/weaponshop/WeaponClient.client.lua (one menu lookup).
+- Studio: StarterGui.GameUI.Frames.Index.Content + Frames.Pets; new HUD/CarryBanner. Existing AnimalMenuClient now controls those frames. ServerScriptService.EquipBestService + GameUITeleports; runtime GameUITeleport RemoteFunction. Original UI/scripts backed up under ServerStorage.StarterGuiBackup_20261008, backup scripts disabled.
+- Status: complete in gameplay Studio place 80759588926584; UI-only Studio place untouched. Index/Close/world tabs, Pets/Close/tabs/individual actions, Equip Best, Base/Weapons/Speed tested with mouse clicks. 33 test pets produced the highest 24 incomes, $737/s. Held-tool cleanup, rollback, rate limits and invalid requests verified. Phone landscape/portrait visual QA added compact scrolling pet rows; simulator mouse targeting prevented phone interaction verification. Final fresh desktop console clean. All temporary fixtures removed; Edit mode/default viewport restored.
+- Semantics: equipped pets earn on the owner's plot, maximum 24 under existing spacing rules. Speed mirrors shop X across SpawnLocation.X, same Z; no upgrade shop was added there. Teleporting while carrying is blocked to preserve delivery. Inventory/cash still session-only.
+- Publishing: GitHub writes remain blocked (git lacks credentials; connector branch creation previously rejected with 403 Resource not accessible by integration). No remote branch or PR was created. Source saved locally; save/publish the Studio place separately.
+
+## Codex — clean UI motion
+- Branch: local codex/ui-motion. GitHub state checked; Claude remote unchanged at a30c942. Concurrent uncommitted Studio edits were detected and preserved.
+- Files: models/game/UIMotion.lua, AnimalMenuClient.client.lua (motion integration + stable layout measurement), QAUIAnimation.client.lua, STARTER_GAME_UI.md.
+- Studio: ReplicatedStorage.UIMotion; existing AnimalMenuClient uses shared button binding and Index/Pets transitions. Backup + disabled manual QA in ServerStorage.UIMotionBackup_20261008.
+- Motion: subtle hover/focus, press/release, 0.22s frame entrance with fade/slide, 0.12s exit. Event-driven, cancelled/revised overlapping tweens, dynamic pet button binding and cleanup. Existing sizes/hierarchy retained.
+- QA: actual hover/press/release outside, new pet button, open/switch/close, rapid clicks, isolated runtime interruption/transparency/position fixture, stable card geometry all passed. Console clean; Edit mode restored, fixtures removed.
+- Integration: preserve live PrettyName/Secret/world/carry changes when merging. They are not duplicated into this source branch; only focused motion changes were recorded locally. Existing GitHub write blocker remains; no remote branch/PR created. Save the Studio place separately.
+
+## Codex — repository publication, 2026-10-08
+- User requested publishing the completed changes and reading Claude's latest ending. Git fetch and the signed-in GitHub browser both showed Claude's latest published commit a30c942: improved scrollable Index. Latest preceding additions: Vulture, random 2-5 animals per world, larger decorations/map and taller walls. No newer Claude commits were available at this check.
+- Publication succeeded through the signed-in GitHub browser despite unavailable terminal/connector write credentials. Branch: codex/ui-motion, based on claude/bunny-model. Game source commit: cc9898d. The earlier blocked-publication notes above describe historical attempts.
+- Changes: shared animal rigs/animation families; StarterGui Index/Pets and HUD; Equip Best and teleport actions; shared button/frame motion; focused weapon menu compatibility; regression scripts and installation notes. Prior Play tests are recorded above.
+- This branch contains the committed Codex work against Claude's published gameplay version. Concurrent Studio-only PrettyName/Secret/new-world/carry additions remain intact in Studio and must be merged from their owner's source before reinstalling full scripts from Git.
+- Review target: claude/bunny-model. Studio place saving/publishing is separate from source publication.

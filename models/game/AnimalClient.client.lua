@@ -166,7 +166,7 @@ for _, model in ipairs(animalsFolder:GetChildren()) do
 end
 
 ---------------------------------------------------------------- HUD: animals in your bag + wave timer (bottom left), banners, popup
-local gui = make("ScreenGui", { Name = "AnimalHud", ResetOnSpawn = false, DisplayOrder = 4, Parent = player:WaitForChild("PlayerGui") })
+local gui = make("ScreenGui", { Name = "AnimalEffects", ResetOnSpawn = false, DisplayOrder = 4, Parent = player:WaitForChild("PlayerGui") })
 task.spawn(function() -- hide while the full-screen Weapon Shop view is open
 	local shopGui = player.PlayerGui:WaitForChild("WeaponShopUI", 60)
 	if shopGui then
@@ -177,91 +177,6 @@ task.spawn(function() -- hide while the full-screen Weapon Shop view is open
 		sync()
 	end
 end)
-local hud = make("Frame", {
-	Name = "Bag",
-	AnchorPoint = Vector2.new(0, 1),
-	Position = UDim2.new(0, 18, 1, -14),
-	Size = UDim2.fromOffset(380, 114),
-	BackgroundTransparency = 1,
-	Parent = gui,
-})
-local waveLabel = text({
-	Size = UDim2.new(1, 0, 0, 26),
-	Text = "",
-	TextSize = 20,
-	TextXAlignment = Enum.TextXAlignment.Left,
-	Parent = hud,
-})
-local bagCount = text({
-	Position = UDim2.fromOffset(0, 26),
-	Size = UDim2.new(1, 0, 0, 30),
-	Text = "",
-	TextSize = 26,
-	TextXAlignment = Enum.TextXAlignment.Left,
-	Parent = hud,
-})
-local cashLabel = text({
-	Position = UDim2.fromOffset(0, 56),
-	Size = UDim2.new(1, 0, 0, 56),
-	Text = "$0",
-	TextSize = 50,
-	Stroke = 4.5,
-	TextColor3 = UIStyle.Colors.Money,
-	TextXAlignment = Enum.TextXAlignment.Left,
-	Parent = hud,
-})
-local function updateBag()
-	local count = player:GetAttribute("AnimalCount") or 0
-	local income = player:GetAttribute("IncomePerSecond") or 0
-	bagCount.Text = string.format("🐾 %d %s%s", count, count == 1 and "Animal" or "Animals", income > 0 and string.format("  •  +$%s/s", AnimalData.Commas(income)) or "")
-end
-player:GetAttributeChangedSignal("AnimalCount"):Connect(function()
-	updateBag()
-	UIStyle.pop(bagCount)
-end)
-player:GetAttributeChangedSignal("IncomePerSecond"):Connect(updateBag)
-updateBag()
-
--- Cash (leaderstats.Cash, see CashAdapter): big and green, with a "+$12" that floats up when it goes up
-task.spawn(function()
-	local cash = player:WaitForChild("leaderstats"):WaitForChild("Cash")
-	local last = cash.Value
-	local function show()
-		cashLabel.Text = "$" .. AnimalData.Commas(cash.Value)
-	end
-	cash.Changed:Connect(function()
-		local gained = cash.Value - last
-		last = cash.Value
-		show()
-		if gained > 0 and gui.Enabled then
-			local float = text({
-				Position = UDim2.fromOffset(cashLabel.TextBounds.X + 14, 66),
-				Size = UDim2.fromOffset(160, 30),
-				Text = "+$" .. AnimalData.Commas(gained),
-				TextSize = 26,
-				TextColor3 = UIStyle.Colors.Money,
-				TextXAlignment = Enum.TextXAlignment.Left,
-				Parent = hud,
-			})
-			local info = TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-			TweenService:Create(float, info, { Position = float.Position - UDim2.fromOffset(0, 34), TextTransparency = 1 }):Play()
-			TweenService:Create(float:FindFirstChildOfClass("UIStroke"), info, { Transparency = 1 }):Play()
-			Debris:AddItem(float, 1)
-		end
-	end)
-	show()
-end)
-task.spawn(function()
-	while true do
-		local nextAt = animalsFolder:GetAttribute("NextWaveAt")
-		if nextAt then
-			local left = math.max(0, nextAt - os.time())
-			waveLabel.Text = string.format("⏰ New animals in %d:%02d", left // 60, left % 60)
-		end
-		task.wait(0.5)
-	end
-end)
-
 local function banner(message, color, duration)
 	local label = text({
 		AnchorPoint = Vector2.new(0.5, 0),

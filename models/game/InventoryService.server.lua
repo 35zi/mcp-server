@@ -18,10 +18,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local AnimalData = require(ReplicatedStorage:WaitForChild("AnimalData"))
+local AnimalRig = require(ReplicatedStorage:WaitForChild("AnimalRig"))
 local AnimalManager = require(ServerScriptService:WaitForChild("AnimalManager"))
 local InventoryAdapter = require(ServerScriptService:WaitForChild("InventoryAdapter"))
 local CashAdapter = require(ServerScriptService:WaitForChild("CashAdapter"))
 
+local EquipBestService = require(script.Parent:WaitForChild("EquipBestService"))
 local MAX_PER_PLOT = 24
 local HOLD_SIZE = 2.6 -- studs: held animals are shrunk to fit in a hand
 local rng = Random.new()
@@ -137,19 +139,16 @@ local function makeHoldTool(player, item)
 	handle.Parent = tool
 	-- held in the fist by its middle, facing forward (Handle -Z)
 	local base = handle.CFrame * CFrame.new(0, -box.Y / 2, 0)
-	for i, p in ipairs(parts) do
-		p.CFrame = base * offsets[i]
-		p.CanCollide = false
-		p.CanQuery = false
-		p.CanTouch = false
-		p.Massless = true
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0 = handle
-		weld.Part1 = p
-		weld.Parent = p
-		p.Anchored = false
-	end
+	AnimalRig.Move(model, parts, offsets, base)
+	for _, p in ipairs(parts) do p.CanQuery = false end
+	local weld = Instance.new("WeldConstraint")
+	weld.Name = "AnimalHoldWeld"
+	weld.Part0 = handle
+	weld.Part1 = model.PrimaryPart
+	weld.Parent = model.PrimaryPart
+	model:SetAttribute("AnimationContext", "Held")
 	model.Parent = tool
+	AnimalRig.SetAnchored(model, false)
 	tool.Destroying:Connect(function()
 		-- lost with the Backpack on death etc.: it goes back into the bag
 		if item.Parent and item:GetAttribute("State") == "Held" then
@@ -239,12 +238,9 @@ local function placeOnPlot(player, item)
 	end
 
 	local root = CFrame.new(spot) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
-	local cfs = table.create(#parts)
-	for i, p in ipairs(parts) do
-		p.CanQuery = false
-		cfs[i] = root * offsets[i]
-	end
-	workspace:BulkMoveTo(parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
+	for _, p in ipairs(parts) do p.CanQuery = false end
+	AnimalRig.Move(model, parts, offsets, root)
+	model:SetAttribute("AnimationContext", "Plot")
 	model:SetAttribute("OwnerUserId", player.UserId)
 	model:SetAttribute("EntryId", item:GetAttribute("Id"))
 	-- where it may wander (PlotAnimalsClient moves it around on every client; the server keeps it still)
@@ -306,7 +302,16 @@ end
 
 ---------------------------------------------------------------- requests
 local function handle(player, action, id)
-	if type(id) ~= "number" then
+	if action == "EquipBest" then
+		return EquipBestService.Equip(player, {
+			Maximum = MAX_PER_PLOT,
+			Plot = plotOf,
+			Folder = plotFolder,
+			Place = placeOnPlot,
+			FindTool = findHeldTool,
+		})
+	end
+	if type(id) ~= "number" or id ~= id or id % 1 ~= 0 then
 		return false, "Bad request"
 	end
 	local item = InventoryAdapter.Get(player, id)
@@ -363,9 +368,15 @@ local function handle(player, action, id)
 end
 
 local busy = {}
+local lastBest = {}
 remote.OnServerInvoke = function(player, action, id)
 	if type(action) ~= "string" or busy[player] then
 		return false, "Slow down"
+	end
+	if action == "EquipBest" then
+		local now = os.clock()
+		if now - (lastBest[player] or -math.huge) < 1 then return false, "Please wait a moment." end
+		lastBest[player] = now
 	end
 	busy[player] = true
 	task.delay(0.2, function()
@@ -435,6 +446,7 @@ end)
 
 Players.PlayerRemoving:Connect(function(player)
 	busy[player] = nil
+	lastBest[player] = nil
 	local label = signLabel(signPlot[player])
 	signPlot[player] = nil
 	if label then
@@ -445,3 +457,4 @@ Players.PlayerRemoving:Connect(function(player)
 		folder:Destroy()
 	end
 end)
+

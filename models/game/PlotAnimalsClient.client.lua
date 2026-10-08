@@ -8,6 +8,7 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AnimalData = require(ReplicatedStorage:WaitForChild("AnimalData"))
+local AnimalRig = require(ReplicatedStorage:WaitForChild("AnimalRig"))
 local plotAnimals = workspace:WaitForChild("PlotAnimals")
 local rng = Random.new()
 
@@ -86,6 +87,7 @@ end
 
 local function step(a, dt)
 	local cfg, scale = a.cfg, a.scale
+	local walk = AnimalRig.IsWalker(a.species)
 	a.clock += dt
 	a.stateT += dt
 	a.yaw += math.clamp(angleDiff(a.yaw, a.targetYaw), -6 * dt, 6 * dt)
@@ -103,16 +105,16 @@ local function step(a, dt)
 		local hopTime = cfg.hopTime or 0.4
 		local p = math.min(a.stateT / hopTime, 1)
 		a.pos = a.hopFrom:Lerp(a.hopFrom + a.step, p)
-		yOff = (cfg.hopHeight or 1) * scale * 4 * p * (1 - p)
-		pitch = cfg.walk and 0 or 0.3 * math.cos(math.pi * p)
+		yOff = (walk and math.min(cfg.hopHeight or 0.05, 0.06) or (cfg.hopHeight or 1)) * scale * 4 * p * (1 - p)
+		pitch = walk and 0 or 0.3 * math.cos(math.pi * p)
 		if p >= 1 then
 			a.hopsLeft -= 1
 			a.state, a.stateT = "land", 0
 		end
 	elseif a.state == "land" then
-		local landTime = cfg.walk and 0.04 or 0.16
+		local landTime = walk and 0.04 or 0.16
 		local q = math.min(a.stateT / landTime, 1)
-		yOff = cfg.walk and 0 or -0.12 * scale * math.sin(math.pi * q)
+		yOff = walk and 0 or -0.12 * scale * math.sin(math.pi * q)
 		if q >= 1 then
 			if a.hopsLeft > 0 then
 				a.state, a.stateT, a.hopFrom = "hop", 0, a.pos
@@ -120,6 +122,13 @@ local function step(a, dt)
 				a.state, a.stateT, a.idleDur = "idle", 0, rng:NextNumber(1.5, 5)
 			end
 		end
+	end
+	-- Local state is consumed by AnimalAnimationClient; it never travels to the server.
+	a.model:SetAttribute("AnimState", a.state)
+	if a.animState ~= a.state then
+		a.animState = a.state
+		a.model:SetAttribute("AnimStartedAt", workspace:GetServerTimeNow() - a.stateT)
+		a.model:SetAttribute("AnimDuration", cfg.hopTime or 0.4)
 	end
 	return CFrame.new(a.pos + Vector3.new(0, yOff, 0)) * CFrame.Angles(0, a.yaw, 0) * CFrame.Angles(pitch, 0, 0)
 end
@@ -139,6 +148,9 @@ local function add(model)
 		end
 		local parts, offsets, bottom, yaw = rootOf(model)
 		animals[model] = {
+			model = model,
+			species = model:GetAttribute("Species") or model:GetAttribute("RigSpecies"),
+			rootIndex = AnimalRig.RootIndex(model, parts),
 			parts = parts,
 			offsets = offsets,
 			cfg = AnimalData.Species[model:GetAttribute("Species")] or {},
@@ -179,13 +191,12 @@ RunService.Heartbeat:Connect(function(dt)
 			animals[model] = nil -- taken back (or streamed out: it comes back through ChildAdded)
 		else
 			local root = step(a, math.min(dt, 0.1))
-			for i, part in ipairs(a.parts) do
-				table.insert(allParts, part)
-				table.insert(allCFrames, root * a.offsets[i])
-			end
+			table.insert(allParts, model.PrimaryPart)
+			table.insert(allCFrames, root * a.offsets[a.rootIndex])
 		end
 	end
 	if #allParts > 0 then
 		workspace:BulkMoveTo(allParts, allCFrames, Enum.BulkMoveMode.FireCFrameChanged)
 	end
 end)
+
