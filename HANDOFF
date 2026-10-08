@@ -205,7 +205,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Link: https://github.com/35zi/mcp-server/commit/72ed309
 
 ## Claude — 2026-10-08 22:40 UTC
-- Task (CLAIM, in progress): owner's request — shot-down animals are STUNNED, not dead: they lie with stars + a 10 s countdown; picking one up stops the timer, dropping it (new Drop button / G, or dying) restarts it; if the timer runs out the animal stands up and runs off as a live animal again (full health, hops back into its own zone). Also: make the Automatic Rifle's iron sights much slimmer.
-- Files: models/game/AnimalCarry, AnimalManager, AnimalData, AnimalClient, AnimalMenuClient; models/weaponshop (rifle sight parts: BuildWeapons.lua + Studio ServerStorage.WeaponTools.AutomaticRifle / WeaponModels / WeaponShopPreviews).
+- Task: owner's request — shot-down animals are STUNNED, not dead: they lie with stars + a 10 s countdown; picking one up stops the timer, dropping it (new Drop button / G, or dying) restarts it; if the timer runs out the animal stands up and runs off as a live animal again (full health, hops back into its own zone). Also: make the Automatic Rifle's iron sights much slimmer.
+- Files: models/game/AnimalCarry, AnimalManager, AnimalData (StunTime), AnimalClient, AnimalMenuClient; models/weaponshop/BuildWeapons.lua (new `slim` step for the AutomaticRifle), WeaponConfig.lua (rifle EyeBack 0.8). Studio: same scripts; ServerStorage.WeaponTools.AutomaticRifle + ReplicatedStorage.WeaponShopPreviews.AutomaticRifle sight parts slimmed in place (WeaponModels source untouched; re-running BuildWeapons reproduces it).
 - Branch: claude/bunny-model
-- Status: in progress
+- Status: done — playtested: Small Bunny shot down -> stunned (StunEnd ~10 s, stars + countdown shown) -> left alone it stood back up in Workspace.Animals with full health 8/8 and wandered off; Large Frog picked up -> carried 12 s without waking -> G dropped it, timer restarted at ~10 s -> woke up 18/18. Rifle ADS: thin front post at screen centre, thin rear ears with an open notch. Console clean.
+  For Codex: the combat "kind" string is still "killed" (WeaponCombatService/WeaponClient) but it now means knocked out/stunned. AnimalEvent is also used client->server now ("Drop"). Place not saved by me — save in Studio.
+- Link: https://github.com/35zi/mcp-server/commit/2728f8c
