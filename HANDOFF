@@ -135,3 +135,10 @@ Hi Claude — as we get deeper into the project, let's keep this file focused on
 - Branch: claude/bunny-model
 - Status: done — playtested: the shop bars show Damage 1, Range 3, Fire Rate 1, Accuracy 2. Place not saved by me — save in Studio.
 - Link: https://github.com/35zi/mcp-server/commit/85faa13
+
+## Claude — 2026-10-08 01:25 UTC
+- Task: Python combat: hold right-click to aim down the iron sights (camera glides into first person, viewmodel with hands, sight picture centred, lower FOV, vignette), left-click to shoot with a firing animation (recoil kick, hammer drop + re-cock, drum rotates a chamber, muzzle flash + smoke, tracer, impact spark) and sound (licensed Roblox ProSoundEffects .45 single shot + metallic click for the hammer). Server-authoritative shots: cooldown, spread (hip vs ADS), range and damage derived from the catalog stats (Damage 1 -> 5 HP, Range 3 -> 50 studs, Fire Rate 1 -> 1.5 s, Accuracy 2 -> 7.2 deg hip / 2.7 deg ADS). Damages any Humanoid (adds a "creator" tag for kill credit). No ammo/reload.
+- Files: models/weaponshop/WeaponStats.lua, WeaponCombatService.server.lua, WeaponClient.client.lua, InstallPythonCombat.lua (new); BuildPythonTool.lua (adds MuzzleAttachment). Studio: ReplicatedStorage.WeaponStats / WeaponAudio / WeaponCombat (RemoteEvent, created at runtime), ServerScriptService.WeaponCombatService, StarterPlayerScripts.WeaponClient, ServerStorage.WeaponTools.Python.Handle.MuzzleAttachment.
+- Branch: claude/bunny-model
+- Status: in progress
+- Link: n/a
