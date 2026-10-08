@@ -13,9 +13,8 @@
 -- attribute EquippedWeapon. Tools come from ServerStorage.WeaponTools.<Id>; a copy also goes into StarterGear so the
 -- weapon comes back after respawning.
 --
--- TEMPORARY CURRENCY: there is no economy in the game yet, so Cash is a placeholder leaderstats value. The three
--- functions in the "Cash adapter" block are the ONLY place that knows about it: replace their bodies with the real
--- economy when it exists and nothing else needs to change.
+-- TEMPORARY CURRENCY: there is no economy in the game yet, so Cash is a placeholder leaderstats value that lives
+-- behind ServerScriptService.CashAdapter (shared with AnimalManager). Replace that module with the real economy.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -23,8 +22,6 @@ local ServerStorage = game:GetService("ServerStorage")
 
 local catalog = require(ReplicatedStorage:WaitForChild("WeaponShopCatalog"))
 local weaponTools = ServerStorage:WaitForChild("WeaponTools")
-
-local STARTING_CASH = 100 -- placeholder, for testing purchases
 
 local byId = {}
 for _, item in ipairs(catalog) do
@@ -38,37 +35,9 @@ if not remote then
 	remote.Parent = ReplicatedStorage
 end
 
----------------------------------------------------------------- Cash adapter (placeholder economy)
-local function setupCash(player)
-	local stats = player:FindFirstChild("leaderstats")
-	if not stats then
-		stats = Instance.new("Folder")
-		stats.Name = "leaderstats"
-		stats.Parent = player
-	end
-	if not stats:FindFirstChild("Cash") then
-		local cash = Instance.new("IntValue")
-		cash.Name = "Cash"
-		cash.Value = STARTING_CASH
-		cash.Parent = stats
-	end
-end
-
-local function getCash(player)
-	local stats = player:FindFirstChild("leaderstats")
-	local cash = stats and stats:FindFirstChild("Cash")
-	return cash and cash.Value or 0
-end
-
-local function spendCash(player, amount)
-	local stats = player:FindFirstChild("leaderstats")
-	local cash = stats and stats:FindFirstChild("Cash")
-	if not cash or cash.Value < amount then
-		return false
-	end
-	cash.Value -= amount
-	return true
-end
+---------------------------------------------------------------- Cash (placeholder economy, see CashAdapter)
+local CashAdapter = require(game:GetService("ServerScriptService"):WaitForChild("CashAdapter"))
+local setupCash, getCash, spendCash = CashAdapter.Setup, CashAdapter.Get, CashAdapter.Spend
 
 ---------------------------------------------------------------- ownership + tools
 local function owns(player, id)

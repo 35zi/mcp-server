@@ -1,12 +1,14 @@
 -- WeaponStats (ModuleScript in ReplicatedStorage)
 -- Turns the 1-10 shop stats from WeaponShopCatalog into real gameplay numbers. Used by BOTH the server
--- (WeaponCombatService: what a shot actually does) and the client (WeaponClient: cooldown display, re-cock timing),
+-- (WeaponCombatService: what a shot actually does) and the client (WeaponClient: cooldown, sway, aim dot range),
 -- so the shop bars, the feel and the server rules always agree. Tune the formulas here.
 --
---   Damage      HP taken per hit                      5 per point        (1 -> 5 HP, 10 -> 50 HP)
---   Range       studs a bullet travels                15 per point + 5   (1 -> 20, 3 -> 50, 10 -> 155)
---   Fire Rate   seconds between shots                 1.5 / (1 + 0.5 * (FireRate - 1))   (1 -> 1.5 s, 10 -> 0.27 s)
---   Accuracy    random spread cone, degrees           hip: (11 - Accuracy) * 0.8, aiming: (11 - Accuracy) * 0.3
+-- Shots have NO random spread: a bullet always lands exactly where the aim dot / sights point.
+--
+--   Damage      HP taken per hit                         5 per point        (1 -> 5 HP, 10 -> 50 HP)
+--   Range       studs a bullet travels                   15 per point + 5   (1 -> 20, 3 -> 50, 10 -> 155)
+--   Fire Rate   seconds between shots                    1.5 / (1 + 0.5 * (FireRate - 1))   (1 -> 1.5 s, 10 -> 0.27 s)
+--   Accuracy    sight sway while aiming down sights, deg (11 - Accuracy) * 0.12   (2 -> 1.08 deg, 10 -> 0.12 deg)
 local WeaponStats = {}
 
 function WeaponStats.derive(stats)
@@ -19,8 +21,7 @@ function WeaponStats.derive(stats)
 		Damage = 5 * damage,
 		Range = 15 * range + 5,
 		Cooldown = 1.5 / (1 + 0.5 * (fireRate - 1)),
-		SpreadHip = (11 - accuracy) * 0.8,
-		SpreadAds = (11 - accuracy) * 0.3,
+		AdsSway = (11 - accuracy) * 0.12,
 	}
 end
 

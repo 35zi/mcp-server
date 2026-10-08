@@ -1,24 +1,29 @@
 -- WeaponCombatService (Script in ServerScriptService)
 --
--- Server side of shooting. The client (WeaponClient) only says "I pulled the trigger, aiming at this point";
--- everything that matters is decided here:
+-- Server side of shooting. The client (WeaponClient) shows the shot instantly and tells the server
+-- "I fired weapon X at this point (and hit this part)"; everything that matters is decided here:
 --   * the player must be alive, own the weapon and be holding it (Tool with attribute WeaponId)
---   * cooldown, spread, range and damage come from WeaponShopCatalog stats via WeaponStats (never from the client)
---   * the bullet starts at the gun's MuzzleAttachment (hip fire) or the head (aiming down sights), with a random
---     spread cone, and is raycast by the server
---   * any Humanoid that is hit takes damage (with a "creator" ObjectValue tag for kill credit)
--- Then every client is told what happened so they can draw the tracer, impact and (for others) sound + muzzle flash.
+--   * cooldown, range and damage come from WeaponShopCatalog stats via WeaponStats (never from the client)
+--   * no random spread: the bullet goes exactly where the player aimed
+--   * animals (Workspace.Animals): the client's hit is accepted if the hit point is close to that animal
+--     (allows for network lag) and no wall is in the way; the animal is damaged through AnimalManager
+--   * anything else: the server raycasts from the muzzle (hip fire) or the head (aiming down sights) and damages
+--     any Humanoid it hits (with a "creator" tag for kill credit)
+-- Then every client is told what happened (tracer, impact, sound, hit confirmation).
 --
 --   Remote: ReplicatedStorage.WeaponCombat (RemoteEvent)
---     client -> server  FireServer(weaponId, aimPoint: Vector3, aiming: boolean)
---     server -> clients FireAllClients(shooterUserId, weaponId, muzzlePos, hitPos, hitNormal, hitHumanoid: boolean)
+--     client -> server  FireServer(weaponId, aimPoint: Vector3, aiming: boolean, hitPart: BasePart?)
+--     server -> clients FireAllClients(shooterUserId, weaponId, muzzlePos, hitPos, hitNormal, kind)
+--                       kind = "none" | "world" | "humanoid" | "animal" | "caught"
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local Debris = game:GetService("Debris")
 
 local catalog = require(ReplicatedStorage:WaitForChild("WeaponShopCatalog"))
 local WeaponStats = require(ReplicatedStorage:WaitForChild("WeaponStats"))
+local AnimalManager = require(ServerScriptService:WaitForChild("AnimalManager"))
 
 local combat = ReplicatedStorage:FindFirstChild("WeaponCombat")
 if not combat then
@@ -29,25 +34,22 @@ end
 
 local COOLDOWN_TOLERANCE = 0.85 -- accept shots slightly early to absorb network jitter
 local MAX_ORIGIN_OFFSET = 10 -- studs a muzzle may be from the head before we distrust it
+local ANIMAL_LAG_TOLERANCE = 6 -- studs an animal may have moved between the client's view and the server's
 
 local lastShot = {}
-local rng = Random.new()
 
 local function finiteVector(v)
 	return typeof(v) == "Vector3" and v.X == v.X and v.Y == v.Y and v.Z == v.Z and v.Magnitude < 1e6
 end
 
-combat.OnServerEvent:Connect(function(player, weaponId, aimPoint, aiming)
+combat.OnServerEvent:Connect(function(player, weaponId, aimPoint, aiming, hitPart)
 	if type(weaponId) ~= "string" or not finiteVector(aimPoint) then
 		return
 	end
 	aiming = aiming == true
 
 	local stats = WeaponStats.forId(catalog, weaponId)
-	if not stats then
-		return
-	end
-	if player:GetAttribute("Owns_" .. weaponId) ~= true then
+	if not stats or player:GetAttribute("Owns_" .. weaponId) ~= true then
 		return
 	end
 	local character = player.Character
@@ -76,36 +78,59 @@ combat.OnServerEvent:Connect(function(player, weaponId, aimPoint, aiming)
 	local origin = aiming and head.Position or muzzlePos
 
 	local toAim = aimPoint - origin
-	local direction = toAim.Magnitude > 0.5 and toAim.Unit or head.CFrame.LookVector
-	local spread = math.rad(aiming and stats.SpreadAds or stats.SpreadHip)
-	local cone = CFrame.lookAt(origin, origin + direction)
-		* CFrame.Angles(0, 0, rng:NextNumber(0, 2 * math.pi))
-		* CFrame.Angles(math.sqrt(rng:NextNumber()) * spread, 0, 0)
-	direction = cone.LookVector
+	local distance = toAim.Magnitude
+	local direction = distance > 0.05 and toAim.Unit or head.CFrame.LookVector
+	if distance > stats.Range + 4 then
+		aimPoint = origin + direction * stats.Range
+		distance = stats.Range
+		hitPart = nil
+	end
 
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = { character }
-	local result = workspace:Raycast(origin, direction * stats.Range, params)
+	local hitPos, hitNormal, kind = aimPoint, -direction, "none"
 
-	local hitPos = result and result.Position or origin + direction * stats.Range
-	local hitNormal = result and result.Normal or -direction
-	local hitHumanoid = false
-	if result then
-		local model = result.Instance:FindFirstAncestorOfClass("Model")
-		local victim = model and model ~= character and model:FindFirstChildOfClass("Humanoid")
-		if victim and victim.Health > 0 then
-			local tag = Instance.new("ObjectValue")
-			tag.Name = "creator"
-			tag.Value = player
-			tag.Parent = victim
-			Debris:AddItem(tag, 2)
-			victim:TakeDamage(stats.Damage)
-			hitHumanoid = true
+	-- 1) the client says it hit an animal: accept it if it's plausible
+	local animal = typeof(hitPart) == "Instance" and hitPart:IsA("BasePart") and AnimalManager.FromPart(hitPart)
+	if animal then
+		local near = (AnimalManager.Position(animal) - aimPoint).Magnitude <= ANIMAL_LAG_TOLERANCE + hitPart.Size.Magnitude
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { character, AnimalManager.Folder() }
+		local wall = workspace:Raycast(origin, direction * math.max(distance - 0.5, 0), params)
+		if near and not wall then
+			kind = AnimalManager.Damage(animal, stats.Damage, player, aimPoint) == "caught" and "caught" or "animal"
+		else
+			animal = nil
 		end
 	end
 
-	combat:FireAllClients(player.UserId, weaponId, muzzlePos, hitPos, hitNormal, hitHumanoid)
+	-- 2) otherwise the server traces the shot itself
+	if not animal then
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { character }
+		local result = workspace:Raycast(origin, direction * math.min(distance + 2, stats.Range), params)
+		if result then
+			hitPos, hitNormal, kind = result.Position, result.Normal, "world"
+			local hitAnimal = AnimalManager.FromPart(result.Instance)
+			if hitAnimal then
+				kind = AnimalManager.Damage(hitAnimal, stats.Damage, player, result.Position) == "caught" and "caught" or "animal"
+			else
+				local model = result.Instance:FindFirstAncestorOfClass("Model")
+				local victim = model and model ~= character and model:FindFirstChildOfClass("Humanoid")
+				if victim and victim.Health > 0 then
+					local tag = Instance.new("ObjectValue")
+					tag.Name = "creator"
+					tag.Value = player
+					tag.Parent = victim
+					Debris:AddItem(tag, 2)
+					victim:TakeDamage(stats.Damage)
+					kind = "humanoid"
+				end
+			end
+		end
+	end
+
+	combat:FireAllClients(player.UserId, weaponId, muzzlePos, hitPos, hitNormal, kind)
 end)
 
 Players.PlayerRemoving:Connect(function(player)
