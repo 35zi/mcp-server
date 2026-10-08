@@ -276,7 +276,7 @@ local hiddenState = false
 -- the shop view or an animal menu (Index / Inventory) is open: the weapon steps aside and the cursor shows
 local function shopOpen()
 	local gui = player.PlayerGui:FindFirstChild("WeaponShopUI")
-	local menu = player.PlayerGui:FindFirstChild("AnimalMenu")
+	local menu = player.PlayerGui:FindFirstChild("GameUI")
 	return (gui ~= nil and gui.Enabled) or (menu ~= nil and menu:GetAttribute("Open") == true)
 end
 
