@@ -178,3 +178,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Branch: claude/bunny-model
 - Status: done — script compile-checked in Studio; its values were read from the live place. Not re-run (the place already has everything).
 - Link: https://github.com/35zi/mcp-server/commit/4aa6d23
+
+## Claude — 2026-10-08 15:05 UTC
+- Task (CLAIM, in progress): owner's request — World 1 (green, past the red line) spawns only Bunny (Common, ~72%), Frog (Uncommon), Hedgehog (Rare), Fox (Legendary, ~2%); World 2 (gold/desert floor) spawns Spider (Common), Turkey (Uncommon), Scorpion (Rare), Camel (Legendary). Shot animals no longer pay out: they drop dead, the shooter picks the body up (E) and carries it over the red line, then it goes into the inventory. Index button (what you've unlocked, per world, with rarities) and Inventory button (hold an animal, or place it in / take it back from your plot). No selling or shops.
+- Files: models/game/* (AnimalManager, AnimalClient, InventoryAdapter, SetupGameWorld) + new models/game/AnimalData.lua, CarryService.server.lua, InventoryService.server.lua, AnimalMenuClient.client.lua, BuildWorldAnimals.lua; small edits to models/weaponshop/WeaponCombatService + WeaponClient ("caught" -> "killed"). Studio: uses Codex's Camel/Scorpion/Spider models from Workspace as templates (moved to ServerStorage.AnimalTemplates, models untouched otherwise); builds Fox + Turkey (no models exist). Reads the plot via the player's PlotName attribute — Codex's PlotService/PlotManager NOT edited.
+- Branch: claude/bunny-model
+- Status: in progress
