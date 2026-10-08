@@ -14,7 +14,7 @@
 --   Remote: ReplicatedStorage.WeaponCombat (RemoteEvent)
 --     client -> server  FireServer(weaponId, aimPoint: Vector3, aiming: boolean, hitPart: BasePart?)
 --     server -> clients FireAllClients(shooterUserId, weaponId, muzzlePos, hitPos, hitNormal, kind)
---                       kind = "none" | "world" | "humanoid" | "animal" | "caught"
+--                       kind = "none" | "world" | "humanoid" | "animal" | "killed"
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -97,7 +97,7 @@ combat.OnServerEvent:Connect(function(player, weaponId, aimPoint, aiming, hitPar
 		params.FilterDescendantsInstances = { character, AnimalManager.Folder() }
 		local wall = workspace:Raycast(origin, direction * math.max(distance - 0.5, 0), params)
 		if near and not wall then
-			kind = AnimalManager.Damage(animal, stats.Damage, player, aimPoint) == "caught" and "caught" or "animal"
+			kind = AnimalManager.Damage(animal, stats.Damage, player, aimPoint) == "killed" and "killed" or "animal"
 		else
 			animal = nil
 		end
@@ -113,7 +113,7 @@ combat.OnServerEvent:Connect(function(player, weaponId, aimPoint, aiming, hitPar
 			hitPos, hitNormal, kind = result.Position, result.Normal, "world"
 			local hitAnimal = AnimalManager.FromPart(result.Instance)
 			if hitAnimal then
-				kind = AnimalManager.Damage(hitAnimal, stats.Damage, player, result.Position) == "caught" and "caught" or "animal"
+				kind = AnimalManager.Damage(hitAnimal, stats.Damage, player, result.Position) == "killed" and "killed" or "animal"
 			else
 				local model = result.Instance:FindFirstAncestorOfClass("Model")
 				local victim = model and model ~= character and model:FindFirstChildOfClass("Humanoid")

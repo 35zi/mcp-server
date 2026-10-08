@@ -1,44 +1,40 @@
 -- AnimalManager (ModuleScript in ServerScriptService; started by the AnimalSpawner Script)
 --
--- Spawns, moves, damages and "catches" the huntable animals. Everything is server-side; clients only add effects
+-- Spawns, moves and damages the huntable animals. Everything is server-side; clients only add effects
 -- (AnimalClient: dust puffs, squeaks, popups) and the weapon code (WeaponCombatService) calls Damage().
 --
---   Templates:   ServerStorage.AnimalTemplates.<Species>  (Models of Parts, PrimaryPart = Body, front = Body -Z)
---   Spawn zones: every Part in Workspace.AnimalSpawnZones (invisible boxes; move/resize them in Studio)
---   Live:        Workspace.Animals (Models with attributes Species, Size, Mutation, Health, MaxHealth, Hop, Land)
+--   Animals:     ReplicatedStorage.AnimalData (which world each species lives in, rarity, stats)
+--   Templates:   ServerStorage.AnimalTemplates.<Species>  (Models, PrimaryPart = Body / <Species>_Body, front = -Z)
+--   Spawn zones: every Part in Workspace.AnimalSpawnZones (invisible boxes; move/resize them in Studio).
+--                Attribute World = which world's animals spawn there (default 1); Population = how many (default 10)
+--   Live:        Workspace.Animals (Models with attributes Species, Rarity, World, Size, Mutation, Health, MaxHealth,
+--                Hop, Land)
 --
 -- Waves: one at server start, then every WAVE_INTERVAL seconds. Animals that survived MAX_AGE_WAVES waves are
--- replaced, then the population is topped back up to POPULATION.
+-- replaced, then every zone is topped back up to its Population.
+-- Species: picked by rarity inside the zone's world (Common is almost guaranteed, Legendary is rare).
 -- Sizes: each spawn rolls Small / Medium / Large (scale, HP and value change with it).
--- Mutations (rare): Gold = gold tint + sparkles + 5x value and a Cash bonus when caught;
---                   Silver = silver tint + 30% more HP.
--- Catching: when Health reaches 0 the shooter gets the animal in their (placeholder) inventory.
+-- Mutations (rare): Gold = gold tint + sparkles + outline + 5x value; Silver = silver tint + 30% more HP.
+-- Killing: when Health reaches 0 the animal drops dead; AnimalCarry takes over the body (pick up, carry over the
+-- red line, then it goes into the inventory). No money is paid out here.
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
-local CashAdapter = require(script.Parent:WaitForChild("CashAdapter"))
-local InventoryAdapter = require(script.Parent:WaitForChild("InventoryAdapter"))
+local AnimalData = require(ReplicatedStorage:WaitForChild("AnimalData"))
+local AnimalCarry = require(script.Parent:WaitForChild("AnimalCarry"))
 
 local AnimalManager = {}
 
 ---------------------------------------------------------------- tuning
 local WAVE_INTERVAL = 300 -- seconds (5 minutes)
-local POPULATION = 12 -- animals alive after each wave
+local DEFAULT_POPULATION = 10 -- animals alive per zone after each wave (zone attribute Population overrides)
 local MAX_AGE_WAVES = 2 -- an animal is replaced after surviving this many waves
 local MIN_SPACING = 7 -- studs between spawned animals
 local ZONE_MARGIN = 3 -- keep animals this far inside a zone's edges
 
--- hp/value are for a Medium animal; weight = how often it spawns; hop* = how it moves
-local SPECIES = {
-	Bunny = { hp = 10, value = 10, weight = 3, hopHeight = 2.2, hopDist = 4.5, hopTime = 0.5 },
-	Frog = { hp = 10, value = 12, weight = 2, hopHeight = 2.6, hopDist = 5.5, hopTime = 0.55 },
-	Mouse = { hp = 5, value = 8, weight = 3, hopHeight = 0.8, hopDist = 2.6, hopTime = 0.28 },
-	Squirrel = { hp = 15, value = 15, weight = 2, hopHeight = 1.8, hopDist = 4.0, hopTime = 0.42 },
-	Hedgehog = { hp = 20, value = 20, weight = 1, hopHeight = 0.6, hopDist = 2.0, hopTime = 0.35 },
-	Duckling = { hp = 10, value = 10, weight = 2, hopHeight = 1.0, hopDist = 2.5, hopTime = 0.32 },
-}
+local SPECIES = AnimalData.Species
 local SIZES = {
 	{ name = "Small", scale = 0.75, chance = 0.35, hp = 0.75, value = 0.8 },
 	{ name = "Medium", scale = 1.0, chance = 0.45, hp = 1.0, value = 1.0 },
@@ -72,7 +68,7 @@ local nextId = 0
 local started = false
 
 local function excludeList()
-	local list = { animalsFolder, zonesFolder }
+	local list = { animalsFolder, zonesFolder, AnimalCarry.Folder() }
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player.Character then
 			table.insert(list, player.Character)
@@ -102,28 +98,6 @@ local function insideZone(zone, position)
 	return math.abs(p.X) <= hx and math.abs(p.Z) <= hz
 end
 
-local function pickZone()
-	local zones, total = {}, 0
-	for _, z in ipairs(zonesFolder:GetChildren()) do
-		if z:IsA("BasePart") then
-			local area = z.Size.X * z.Size.Z
-			table.insert(zones, { z, area })
-			total += area
-		end
-	end
-	if total <= 0 then
-		return nil
-	end
-	local roll = rng:NextNumber(0, total)
-	for _, entry in ipairs(zones) do
-		roll -= entry[2]
-		if roll <= 0 then
-			return entry[1]
-		end
-	end
-	return zones[#zones][1]
-end
-
 local function randomPoint(zone)
 	local hx, hz = zoneBounds(zone)
 	local world = zone.CFrame:PointToWorldSpace(Vector3.new(rng:NextNumber(-hx, hx), 0, rng:NextNumber(-hz, hz)))
@@ -147,18 +121,23 @@ local function pickWeighted(list, weightOf)
 	return list[#list]
 end
 
-local function rollSpecies()
+-- a species from this world, picked by rarity (only species that have a template)
+local function rollSpecies(worldId)
 	local available = {}
-	for _, t in ipairs(templates:GetChildren()) do
-		if t:IsA("Model") and SPECIES[t.Name] then
-			table.insert(available, t.Name)
+	for _, world in ipairs(AnimalData.Worlds) do
+		if world.id == worldId then
+			for _, name in ipairs(world.species) do
+				if SPECIES[name] and templates:FindFirstChild(name) then
+					table.insert(available, name)
+				end
+			end
 		end
 	end
 	if #available == 0 then
 		return nil
 	end
 	return pickWeighted(available, function(name)
-		return SPECIES[name].weight
+		return AnimalData.Rarities[SPECIES[name].rarity].weight
 	end)
 end
 
@@ -226,28 +205,47 @@ local function makeTag(record)
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "AnimalTag"
 	gui.Adornee = body
-	gui.Size = UDim2.fromOffset(120, 44)
+	gui.Size = UDim2.fromOffset(140, 64)
 	gui.StudsOffsetWorldSpace = Vector3.new(0, record.height * 0.75 + 1.4, 0)
 	gui.MaxDistance = 140
 	gui.LightInfluence = 0
 	gui.Parent = body
 
-	if record.mutation ~= "None" then
-		local label = Instance.new("TextLabel")
-		label.Name = "Mutation"
-		label.Size = UDim2.new(1, 0, 0, 22)
-		label.BackgroundTransparency = 1
-		label.Text = string.upper(record.mutation)
-		label.Font = Enum.Font.GothamBlack
-		label.TextScaled = true
-		label.TextColor3 = MUTATIONS[record.mutation].tint
-		label.Parent = gui
+	local list = Instance.new("UIListLayout")
+	list.VerticalAlignment = Enum.VerticalAlignment.Bottom
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Parent = gui
+
+	local function label(name, text, color, order)
+		local l = Instance.new("TextLabel")
+		l.Name = name
+		l.LayoutOrder = order
+		l.Size = UDim2.new(1, 0, 0, 20)
+		l.BackgroundTransparency = 1
+		l.Text = text
+		l.Font = Enum.Font.GothamBlack
+		l.TextScaled = true
+		l.TextColor3 = color
+		l.Parent = gui
 		local stroke = Instance.new("UIStroke")
 		stroke.Thickness = 2
 		stroke.Color = Color3.fromRGB(20, 20, 24)
-		stroke.Parent = label
+		stroke.Parent = l
+	end
+	if record.cfg.rarity ~= "Common" then
+		label("Rarity", string.upper(record.cfg.rarity), AnimalData.Rarities[record.cfg.rarity].color, 1)
+	end
+	if record.mutation ~= "None" then
+		label("Mutation", string.upper(record.mutation), MUTATIONS[record.mutation].tint, 2)
 	end
 
+	local slot = Instance.new("Frame")
+	slot.Name = "HealthSlot"
+	slot.LayoutOrder = 3
+	slot.Size = UDim2.new(1, 0, 0, 14)
+	slot.BackgroundTransparency = 1
+	slot.Parent = gui
 	local bar = Instance.new("Frame")
 	bar.Name = "HealthBar"
 	bar.AnchorPoint = Vector2.new(0.5, 1)
@@ -256,7 +254,7 @@ local function makeTag(record)
 	bar.BackgroundColor3 = Color3.fromRGB(30, 22, 18)
 	bar.BorderSizePixel = 0
 	bar.Visible = false
-	bar.Parent = gui
+	bar.Parent = slot
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(1, 0)
 	corner.Parent = bar
@@ -291,11 +289,87 @@ local function showHealth(record)
 	end)
 end
 
+---------------------------------------------------------------- building a model
+local function sizeByName(name)
+	for _, s in ipairs(SIZES) do
+		if s.name == name then
+			return s
+		end
+	end
+	return SIZES[2]
+end
+
+-- a dressed copy of a species' template (anchored, no scripts, sized, mutation look); nil if there is no template
+function AnimalManager.BuildModel(species, sizeName, mutation)
+	local template = templates:FindFirstChild(species)
+	if not template then
+		return nil
+	end
+	local model = template:Clone()
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanCollide = false
+			d.CanTouch = false
+			d.CanQuery = true
+		elseif d:IsA("LuaSourceContainer") then
+			d:Destroy()
+		end
+	end
+	if not model.PrimaryPart then
+		model.PrimaryPart = model:FindFirstChild("Body", true) or model:FindFirstChildWhichIsA("BasePart", true)
+	end
+	local size = sizeByName(sizeName)
+	if size.scale ~= 1 then
+		-- relative to the template's own scale (imported meshes are stored at e.g. 0.017, not 1)
+		model:ScaleTo(model:GetScale() * size.scale)
+	end
+	applyMutationLook(model, mutation or "None")
+	model.Name = species
+	return model
+end
+
+-- every part with its offset from the model's root frame: bottom centre, facing the front (Body -Z), yaw only.
+-- The bounds are measured from the parts' corners (GetBoundingBox follows the model pivot, which imported meshes
+-- often have turned on its side). Returns parts, offsets, size (X = width, Y = height, Z = length).
+local CORNERS = {}
+for _, x in ipairs({ -0.5, 0.5 }) do
+	for _, y in ipairs({ -0.5, 0.5 }) do
+		for _, z in ipairs({ -0.5, 0.5 }) do
+			table.insert(CORNERS, Vector3.new(x, y, z))
+		end
+	end
+end
+
+function AnimalManager.RootOffsets(model)
+	local look = model.PrimaryPart.CFrame.LookVector
+	local frame = CFrame.Angles(0, math.atan2(-look.X, -look.Z), 0)
+	local low, high = Vector3.one * math.huge, -Vector3.one * math.huge
+	local parts = {}
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("BasePart") then
+			table.insert(parts, d)
+			for _, c in ipairs(CORNERS) do
+				local p = frame:PointToObjectSpace(d.CFrame * (c * d.Size))
+				low = low:Min(p)
+				high = high:Max(p)
+			end
+		end
+	end
+	local bottom = frame:PointToWorldSpace(Vector3.new((low.X + high.X) / 2, low.Y, (low.Z + high.Z) / 2))
+	local root0 = CFrame.new(bottom) * frame
+	local offsets = table.create(#parts)
+	for i, d in ipairs(parts) do
+		offsets[i] = root0:ToObjectSpace(d.CFrame)
+	end
+	return parts, offsets, high - low
+end
+
 ---------------------------------------------------------------- spawning
-local function spawnOne()
-	local species = rollSpecies()
-	local zone = pickZone()
-	if not species or not zone then
+local function spawnOne(zone)
+	local worldId = zone:GetAttribute("World") or 1
+	local species = rollSpecies(worldId)
+	if not species then
 		return nil
 	end
 	local position
@@ -322,45 +396,16 @@ local function spawnOne()
 	local cfg = SPECIES[species]
 	local size = rollSize()
 	local mutation = rollMutation()
-	local model = templates[species]:Clone()
-	for _, d in ipairs(model:GetDescendants()) do
-		if d:IsA("BasePart") then
-			d.Anchored = true
-			d.CanCollide = false
-			d.CanTouch = false
-			d.CanQuery = true
-		elseif d:IsA("LuaSourceContainer") then
-			d:Destroy()
-		end
-	end
-	if not model.PrimaryPart then
-		model.PrimaryPart = model:FindFirstChild("Body", true) or model:FindFirstChildWhichIsA("BasePart", true)
-	end
-	if size.scale ~= 1 then
-		-- relative to the template's own scale (imported meshes are stored at e.g. 0.017, not 1)
-		model:ScaleTo(model:GetScale() * size.scale)
-	end
-	applyMutationLook(model, mutation)
-
-	-- root frame: bottom centre of the model, facing the template's front (Body -Z), yaw only
-	local boxCF, boxSize = model:GetBoundingBox()
-	local look = model.PrimaryPart.CFrame.LookVector
-	local yaw0 = math.atan2(-look.X, -look.Z)
-	local root0 = CFrame.new(boxCF.Position - Vector3.new(0, boxSize.Y / 2, 0)) * CFrame.Angles(0, yaw0, 0)
-	local parts, offsets = {}, {}
-	for _, d in ipairs(model:GetDescendants()) do
-		if d:IsA("BasePart") then
-			table.insert(parts, d)
-			table.insert(offsets, root0:ToObjectSpace(d.CFrame))
-		end
-	end
+	local model = AnimalManager.BuildModel(species, size.name, mutation)
+	local parts, offsets, boxSize = AnimalManager.RootOffsets(model)
 
 	nextId += 1
 	local maxHealth = math.max(1, math.floor(cfg.hp * size.hp * (MUTATIONS[mutation] and MUTATIONS[mutation].hp or 1) + 0.5))
 	local value = math.floor(cfg.value * size.value * (MUTATIONS[mutation] and MUTATIONS[mutation].value or 1) + 0.5)
-	model.Name = species
 	model:SetAttribute("AnimalId", nextId)
 	model:SetAttribute("Species", species)
+	model:SetAttribute("Rarity", cfg.rarity)
+	model:SetAttribute("World", worldId)
 	model:SetAttribute("Size", size.name)
 	model:SetAttribute("Scale", size.scale)
 	model:SetAttribute("Mutation", mutation)
@@ -377,9 +422,12 @@ local function spawnOne()
 		size = size,
 		mutation = mutation,
 		zone = zone,
+		worldId = worldId,
 		parts = parts,
 		offsets = offsets,
 		height = boxSize.Y,
+		width = boxSize.X,
+		length = boxSize.Z,
 		pos = position,
 		yaw = rng:NextNumber(0, math.pi * 2),
 		targetYaw = 0,
@@ -401,8 +449,8 @@ local function spawnOne()
 	makeTag(record)
 	records[model] = record
 	model.Parent = animalsFolder
-	if mutation ~= "None" then
-		animalEvent:FireAllClients("Mutation", { species = species, mutation = mutation, size = size.name })
+	if mutation ~= "None" or cfg.rarity == "Legendary" then
+		animalEvent:FireAllClients("Mutation", { species = species, mutation = mutation, rarity = cfg.rarity, size = size.name, world = worldId })
 	end
 	return record
 end
@@ -423,12 +471,18 @@ local function wave()
 			removeRecord(record, "Despawn")
 		end
 	end
-	local alive = 0
-	for _ in pairs(records) do
-		alive += 1
-	end
-	for _ = alive + 1, POPULATION do
-		spawnOne()
+	for _, zone in ipairs(zonesFolder:GetChildren()) do
+		if zone:IsA("BasePart") then
+			local alive = 0
+			for _, record in pairs(records) do
+				if record.zone == zone then
+					alive += 1
+				end
+			end
+			for _ = alive + 1, zone:GetAttribute("Population") or DEFAULT_POPULATION do
+				spawnOne(zone)
+			end
+		end
 	end
 	animalsFolder:SetAttribute("Wave", waveNumber)
 	animalsFolder:SetAttribute("NextWaveAt", os.time() + WAVE_INTERVAL)
@@ -477,6 +531,20 @@ local function startWander(record, awayFrom)
 	record.idleDur = rng:NextNumber(1, 2)
 end
 
+local function beginHop(record)
+	record.state, record.stateT = "hop", 0
+	record.hopFrom = record.pos
+	record.hopTo = record.pos + record.step
+	local y = groundAt(record.hopTo.X, record.hopTo.Z, record.hopTo.Y + 10)
+	if y then
+		record.hopTo = Vector3.new(record.hopTo.X, y, record.hopTo.Z)
+	end
+	record.hops += 1
+	if not record.cfg.walk then
+		record.model:SetAttribute("Hop", record.hops)
+	end
+end
+
 local function step(record, dt)
 	local cfg = record.cfg
 	local scale = record.size.scale
@@ -487,7 +555,7 @@ local function step(record, dt)
 	local turnSpeed = record.fleeing and 14 or 7
 	record.yaw += math.clamp(diff, -turnSpeed * dt, turnSpeed * dt)
 
-	local yOff, pitch, squash = 0, 0, 0
+	local yOff, pitch = 0, 0
 	if record.state == "idle" then
 		yOff = 0.04 * scale * math.sin(record.clock * 2.6)
 		if record.stateT >= record.idleDur then
@@ -495,41 +563,28 @@ local function step(record, dt)
 		end
 	elseif record.state == "turn" then
 		if math.abs(angleDiff(record.yaw, record.targetYaw)) < 0.06 or record.stateT > 0.5 then
-			record.state, record.stateT = "hop", 0
-			record.hopFrom = record.pos
-			record.hopTo = record.pos + record.step
-			local y = groundAt(record.hopTo.X, record.hopTo.Z, record.hopTo.Y + 10)
-			if y then
-				record.hopTo = Vector3.new(record.hopTo.X, y, record.hopTo.Z)
-			end
-			record.hops += 1
-			record.model:SetAttribute("Hop", record.hops)
+			beginHop(record)
 		end
 	elseif record.state == "hop" then
 		local p = math.min(record.stateT / hopTime, 1)
 		record.pos = record.hopFrom:Lerp(record.hopTo, p)
 		yOff = cfg.hopHeight * scale * 4 * p * (1 - p)
-		pitch = 0.3 * math.cos(math.pi * p)
+		pitch = cfg.walk and 0 or 0.3 * math.cos(math.pi * p)
 		if p >= 1 then
 			record.pos = record.hopTo
 			record.hopsLeft -= 1
 			record.state, record.stateT = "land", 0
-			record.model:SetAttribute("Land", record.hops)
+			if not cfg.walk then
+				record.model:SetAttribute("Land", record.hops)
+			end
 		end
 	elseif record.state == "land" then
-		local q = math.min(record.stateT / 0.16, 1)
-		yOff = -0.12 * scale * math.sin(math.pi * q)
+		local landTime = cfg.walk and 0.04 or 0.16
+		local q = math.min(record.stateT / landTime, 1)
+		yOff = cfg.walk and 0 or -0.12 * scale * math.sin(math.pi * q)
 		if q >= 1 then
 			if record.hopsLeft > 0 then
-				record.state, record.stateT = "hop", 0
-				record.hopFrom = record.pos
-				record.hopTo = record.pos + record.step
-				local y = groundAt(record.hopTo.X, record.hopTo.Z, record.hopTo.Y + 10)
-				if y then
-					record.hopTo = Vector3.new(record.hopTo.X, y, record.hopTo.Z)
-				end
-				record.hops += 1
-				record.model:SetAttribute("Hop", record.hops)
+				beginHop(record)
 			else
 				record.fleeing = false
 				record.state, record.stateT = "idle", 0
@@ -557,7 +612,7 @@ local function onHeartbeat(dt)
 end
 
 ---------------------------------------------------------------- public API
--- the animal a part belongs to (or nil)
+-- the live animal a part belongs to (or nil)
 function AnimalManager.FromPart(part)
 	if typeof(part) ~= "Instance" or not part:IsDescendantOf(animalsFolder) then
 		return nil
@@ -581,7 +636,7 @@ function AnimalManager.Position(record)
 	return record.pos + Vector3.new(0, record.height / 2, 0)
 end
 
--- damage an animal; returns "hit" or "caught"
+-- damage an animal; returns "hit" or "killed"
 function AnimalManager.Damage(record, amount, player, hitPos)
 	if record.dead then
 		return "none"
@@ -591,20 +646,29 @@ function AnimalManager.Damage(record, amount, player, hitPos)
 	animalEvent:FireAllClients("Hit", { model = record.model, position = hitPos, scale = record.size.scale })
 
 	if record.health <= 0 then
-		local entry = { Species = record.species, Size = record.size.name, Mutation = record.mutation, Value = record.value }
-		InventoryAdapter.Add(player, entry)
-		local bonus = record.mutation == "Gold" and record.value or 0
-		CashAdapter.Add(player, bonus)
-		animalEvent:FireClient(player, "YouCaught", {
+		-- it drops dead where it stands; the shooter has to pick it up and carry it home (AnimalCarry)
+		records[record.model] = nil
+		record.dead = true
+		local tag = record.model.PrimaryPart and record.model.PrimaryPart:FindFirstChild("AnimalTag")
+		if tag then
+			tag:Destroy()
+		end
+		AnimalCarry.AddBody(record.model, {
 			species = record.species,
+			rarity = record.cfg.rarity,
+			world = record.worldId,
 			size = record.size.name,
 			mutation = record.mutation,
 			value = record.value,
-			bonus = bonus,
-			count = player:GetAttribute("AnimalCount") or 1,
-		})
-		removeRecord(record, "Caught")
-		return "caught"
+			parts = record.parts,
+			offsets = record.offsets,
+			height = record.height,
+			width = record.width,
+			length = record.length,
+			pos = record.pos,
+			yaw = record.yaw,
+		}, player)
+		return "killed"
 	end
 
 	showHealth(record)

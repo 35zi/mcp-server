@@ -11,7 +11,7 @@
 --   * per-weapon animation from WeaponConfig: hammer drop/re-cock with a click, cylinder turning, pump, bolt,
 --     charging handle. Automatic weapons fire while the trigger is held.
 -- Tool attributes (set by BuildWeapons, Handle space): EyePos, SightTarget, MuzzlePos, SupportPos.
--- The weapon is disabled while the Weapon Shop view is open.
+-- The weapon is disabled while the Weapon Shop view or an animal menu (Index / Inventory) is open.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -238,7 +238,7 @@ local function impact(position, normal, kind)
 	local attachment = Instance.new("Attachment")
 	attachment.Parent = holder
 	attachment.WorldCFrame = CFrame.lookAt(position, position + (normal or Vector3.yAxis)) * CFrame.Angles(math.rad(-90), 0, 0)
-	if kind ~= "animal" and kind ~= "caught" then
+	if kind ~= "animal" and kind ~= "killed" then
 		emitter(attachment, {
 			Texture = "rbxasset://textures/particles/smoke_main.dds",
 			Color = ColorSequence.new(Color3.fromRGB(176, 150, 112)),
@@ -273,9 +273,11 @@ local yaw, pitch = 0, 0
 local gamepadLook = Vector2.zero
 local hiddenState = false
 
+-- the shop view or an animal menu (Index / Inventory) is open: the weapon steps aside and the cursor shows
 local function shopOpen()
 	local gui = player.PlayerGui:FindFirstChild("WeaponShopUI")
-	return gui ~= nil and gui.Enabled
+	local menu = player.PlayerGui:FindFirstChild("AnimalMenu")
+	return (gui ~= nil and gui.Enabled) or (menu ~= nil and menu:GetAttribute("Open") == true)
 end
 
 local function isAnimal(instance)
@@ -786,9 +788,9 @@ end)
 ---------------------------------------------------------------- what other players' shots look like + hit confirmation
 combat.OnClientEvent:Connect(function(shooterId, weaponId, muzzlePos, hitPos, hitNormal, kind)
 	if shooterId == player.UserId then
-		if kind == "animal" or kind == "humanoid" or kind == "caught" then
-			flashHitMarker(kind == "caught")
-			playSound("HitTick", nil, kind == "caught" and 1.25 or 1, 0.8)
+		if kind == "animal" or kind == "humanoid" or kind == "killed" then
+			flashHitMarker(kind == "killed")
+			playSound("HitTick", nil, kind == "killed" and 1.25 or 1, 0.8)
 		end
 		return
 	end

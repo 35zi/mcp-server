@@ -3,10 +3,13 @@
 -- Client-side polish for the huntable animals (the server, AnimalManager, owns the animals themselves):
 --   * a small dust puff + a couple of leaf flicks under an animal every time it takes off or lands
 --   * when an animal is hit: a quick white flash on it and a squeak
---   * when an animal is caught or despawns: a poof (gold sparkles for gold ones)
---   * "CAUGHT!" popup + cash-register sound for the player who caught it
---   * a banner for everyone when a rare Gold / Silver animal appears
+--   * when an animal is brought home or despawns: a poof (gold sparkles for gold ones)
+--   * "<animal> down!" hint for the shooter, then "CAUGHT!" popup + cash-register sound once it's carried over the
+--     red line (AnimalCarry)
+--   * pick-up prompts on dead animals and plot animals only show for their owner
+--   * a banner for everyone when a Legendary or a Gold / Silver animal appears
 --   * a small HUD: animals in your bag + time until the next wave
+local AnimalData = require(game:GetService("ReplicatedStorage"):WaitForChild("AnimalData"))
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
@@ -122,16 +125,21 @@ local function feetOf(model)
 	return cf.Position - Vector3.new(0, size.Y / 2, 0)
 end
 
+local MEADOW_DUST = ColorSequence.new(Color3.fromRGB(190, 165, 120))
+local DESERT_DUST = ColorSequence.new(Color3.fromRGB(226, 196, 120))
+
 local function puff(model, strength)
 	if not model.Parent then
 		return
 	end
 	local scale = model:GetAttribute("Scale") or 1
+	local desert = model:GetAttribute("World") == 2
 	holder.Position = feetOf(model) + Vector3.new(0, 0.2, 0)
+	dust.Color = desert and DESERT_DUST or MEADOW_DUST
 	dust.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35 * scale), NumberSequenceKeypoint.new(1, 1.3 * scale) })
 	leaves.Size = NumberSequence.new(0.14 * scale)
 	dust:Emit(math.floor(5 * strength + 0.5))
-	if rng:NextNumber() < 0.6 then
+	if not desert and rng:NextNumber() < 0.6 then
 		leaves:Emit(math.max(1, math.floor(2 * strength + 0.5)))
 	end
 end
@@ -243,12 +251,13 @@ local function caughtPopup(data)
 	if old then
 		old:Destroy()
 	end
-	local mutationColor = data.mutation == "Gold" and GOLD or data.mutation == "Silver" and SILVER or WHITE
+	local rarity = AnimalData.Rarities[data.rarity] or AnimalData.Rarities.Common
+	local mutationColor = data.mutation == "Gold" and GOLD or data.mutation == "Silver" and SILVER or rarity.color
 	local frame = make("Frame", {
 		Name = "Caught",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.3),
-		Size = UDim2.fromOffset(380, 116),
+		Size = UDim2.fromOffset(500, 116),
 		BackgroundColor3 = DARK,
 		Parent = gui,
 	})
@@ -266,7 +275,7 @@ local function caughtPopup(data)
 		Parent = frame,
 	})
 	make("UIStroke", { Color = BLACK, Thickness = 2, Parent = title })
-	local name = data.size .. " " .. ((data.mutation ~= "None") and (data.mutation .. " ") or "") .. data.species
+	local name = AnimalData.DisplayName(data.species, data.size, data.mutation)
 	make("TextLabel", {
 		Position = UDim2.fromOffset(0, 48),
 		Size = UDim2.new(1, 0, 0, 28),
@@ -281,7 +290,7 @@ local function caughtPopup(data)
 		Position = UDim2.fromOffset(0, 78),
 		Size = UDim2.new(1, 0, 0, 26),
 		BackgroundTransparency = 1,
-		Text = (data.bonus and data.bonus > 0) and string.format("Worth $%d  •  +$%d Cash!", data.value, data.bonus) or string.format("Worth $%d  •  added to your bag", data.value),
+		Text = string.format("%s  •  added to your inventory%s", string.upper(data.rarity or "Common"), data.firstTime and "  •  NEW in your Index!" or ""),
 		Font = Enum.Font.GothamMedium,
 		TextSize = 17,
 		TextColor3 = Color3.fromRGB(232, 213, 192),
@@ -322,11 +331,55 @@ animalEvent.OnClientEvent:Connect(function(kind, data)
 			sparkle.Color = ColorSequence.new(data.mutation == "Gold" and GOLD or SILVER)
 			sparkle:Emit(24)
 		end
-	elseif kind == "YouCaught" then
+	elseif kind == "Delivered" then
 		caughtPopup(data)
-		playSound("Catch", nil, 1, data.mutation == "Gold" and 1.2 or 1)
+		playSound("Catch", nil, 1, (data.mutation == "Gold" or data.rarity == "Legendary") and 1.2 or 1)
+	elseif kind == "Killed" then
+		banner(string.format("%s down! Pick it up (E)", string.upper(AnimalData.DisplayName(data.species, data.size, data.mutation))), WHITE, 3)
+	elseif kind == "Notice" then
+		banner(data.text, WHITE, 2.5)
 	elseif kind == "Mutation" then
-		local color = data.mutation == "Gold" and GOLD or SILVER
-		banner(string.format("A %s %s appeared!", string.upper(data.mutation), string.upper(data.species)), color, 4)
+		local parts = {}
+		if data.rarity == "Legendary" then
+			table.insert(parts, "LEGENDARY")
+		end
+		if data.mutation and data.mutation ~= "None" then
+			table.insert(parts, string.upper(data.mutation))
+		end
+		table.insert(parts, string.upper(data.species))
+		local color = data.mutation == "Gold" and GOLD or data.mutation == "Silver" and SILVER or AnimalData.Rarities.Legendary.color
+		banner(string.format("A %s appeared in World %d!", table.concat(parts, " "), data.world or 1), color, 4)
 	end
 end)
+
+---------------------------------------------------------------- owner-only prompts (dead animals, plot animals)
+local function ownerOf(prompt)
+	local node = prompt.Parent
+	while node and node ~= workspace do
+		local owner = node:GetAttribute("OwnerUserId")
+		if owner then
+			return owner
+		end
+		node = node.Parent
+	end
+	return nil
+end
+
+local function filterPrompt(prompt)
+	if prompt:IsA("ProximityPrompt") then
+		local owner = ownerOf(prompt)
+		if owner and owner ~= player.UserId then
+			prompt.Enabled = false
+		end
+	end
+end
+
+for _, name in ipairs({ "AnimalBodies", "PlotAnimals" }) do
+	task.spawn(function()
+		local folder = workspace:WaitForChild(name)
+		folder.DescendantAdded:Connect(filterPrompt)
+		for _, d in ipairs(folder:GetDescendants()) do
+			filterPrompt(d)
+		end
+	end)
+end
