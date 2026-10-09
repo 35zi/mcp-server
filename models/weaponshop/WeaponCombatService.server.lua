@@ -7,8 +7,8 @@
 --   * no random spread: the bullet goes exactly where the player aimed
 --   * animals (Workspace.Animals): the client's hit is accepted if the hit point is close to that animal
 --     (allows for network lag) and no wall is in the way; the animal is damaged through AnimalManager
---   * anything else: the server raycasts from the muzzle (hip fire) or the head (aiming down sights) and damages
---     any Humanoid it hits (with a "creator" tag for kill credit)
+--   * player hits are server-raycast validated and only ragdoll/fling; no Humanoid damage or kill tags
+--   * carriers also drop their animal for anyone to grab
 -- Then every client is told what happened (tracer, impact, sound, hit confirmation).
 --
 --   Remote: ReplicatedStorage.WeaponCombat (RemoteEvent)
@@ -19,11 +19,12 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
-local Debris = game:GetService("Debris")
 
 local catalog = require(ReplicatedStorage:WaitForChild("WeaponShopCatalog"))
 local WeaponStats = require(ReplicatedStorage:WaitForChild("WeaponStats"))
 local AnimalManager = require(ServerScriptService:WaitForChild("AnimalManager"))
+local AnimalCarry = require(ServerScriptService:WaitForChild("AnimalCarry"))
+local PlayerKnockback = require(ServerScriptService:WaitForChild("PlayerKnockback"))
 
 local combat = ReplicatedStorage:FindFirstChild("WeaponCombat")
 if not combat then
@@ -36,7 +37,31 @@ local COOLDOWN_TOLERANCE = 0.85 -- accept shots slightly early to absorb network
 local MAX_ORIGIN_OFFSET = 10 -- studs a muzzle may be from the head before we distrust it
 local ANIMAL_LAG_TOLERANCE = 6 -- studs an animal may have moved between the client's view and the server's
 
+local CARRIER_KNOCK_POWER = 45 -- studs/second a shot carrier is pushed back
+local CARRIER_RAGDOLL_TIME = 1.1
+
 local lastShot = {}
+
+-- the player whose character this part belongs to (or nil)
+local function playerOfPart(part)
+	local node = part
+	while node and node ~= workspace do
+		local p = Players:GetPlayerFromCharacter(node)
+		if p then
+			return p
+		end
+		node = node.Parent
+	end
+	return nil
+end
+
+-- Every shot player is pushed back and ragdolled; a carried animal is dropped for anyone to grab.
+local function knockPlayer(victim, fromPos)
+	if AnimalCarry.IsCarrying(victim) then
+		AnimalCarry.KnockOff(victim, true, "You got shot and dropped your %s! Anyone can grab it now!")
+	end
+	PlayerKnockback.Knock(victim, fromPos, CARRIER_KNOCK_POWER, CARRIER_RAGDOLL_TIME)
+end
 
 local function finiteVector(v)
 	return typeof(v) == "Vector3" and v.X == v.X and v.Y == v.Y and v.Z == v.Z and v.Magnitude < 1e6
@@ -115,17 +140,12 @@ combat.OnServerEvent:Connect(function(player, weaponId, aimPoint, aiming, hitPar
 			if hitAnimal then
 				kind = AnimalManager.Damage(hitAnimal, stats.Damage, player, result.Position) == "killed" and "killed" or "animal"
 			else
-				local model = result.Instance:FindFirstAncestorOfClass("Model")
-				local victim = model and model ~= character and model:FindFirstChildOfClass("Humanoid")
-				if victim and victim.Health > 0 then
-					local tag = Instance.new("ObjectValue")
-					tag.Name = "creator"
-					tag.Value = player
-					tag.Parent = victim
-					Debris:AddItem(tag, 2)
-					victim:TakeDamage(stats.Damage)
+				local shotPlayer = playerOfPart(result.Instance)
+				if shotPlayer and shotPlayer ~= player then
+					knockPlayer(shotPlayer, origin)
 					kind = "humanoid"
 				end
+
 			end
 		end
 	end

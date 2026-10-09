@@ -22,6 +22,8 @@ local ServerStorage = game:GetService("ServerStorage")
 
 local catalog = require(ReplicatedStorage:WaitForChild("WeaponShopCatalog"))
 local weaponTools = ServerStorage:WaitForChild("WeaponTools")
+local sightSetup=require(ReplicatedStorage:WaitForChild("WeaponSightSetup"))
+for _,tool in weaponTools:GetChildren() do sightSetup.Apply(tool) end
 
 local byId = {}
 for _, item in ipairs(catalog) do
