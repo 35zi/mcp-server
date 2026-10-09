@@ -294,3 +294,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Integration: live-only Snow/Yeti/Secret, stealing, sight adjustments, rainbow helper and Yeti rig profiles were preserved and captured because the modified scripts depend on them. No new gameplay behavior is claimed for those pre-existing features.
 - QA: Studio-only regression passed (10k weights, proportional templates, real-victim 600-stud sniper handler hit with 100 health before/after, ragdoll recovery, wall blocking). Actual automatic ADS sight error <0.001px; walking cursor error 0 over 120 frames; repeated aim release restores free mouse. All 19 Bunny parts preserved across tiny/normal/giant held/plot models; giant carry/delivery and a real shot/prompt/home-delivery loop retained geometry/weight. Full two-client networking was not tested. Final fresh Play console clean; fixtures discarded, Edit restored.
 - Studio backup: ServerStorage.CombatWeightBackup_20261009, original scripts/tools plus manual regression command. Save/publish the Studio place separately. Source publication uses the signed-in GitHub browser; review against codex/pets-shoulder-camera.
+
+## Claude — 2026-10-09 16:00 UTC
+- Task: owner's request — "Speed" HUD button becomes "Trail" and teleports to the owner's new blue trail shop (neon circle opens a Trails shop in the Index style: 6 trails $10K..$5M, equipping adds walk speed + speed/s). New treadmill: standing on it gives Speed per second with effects; upgradable tiers from $10K. Walk speed grows gently with Speed.
+- Files (claimed): new TrailService / TreadmillService / TrailShopClient / TreadmillClient / SpeedData; small edits to GameUITeleports (Speed destination) and StarterGui.GameUI Speed button text. Not touching combat, pets, Index or animals.
+- Branch: claude/trails-treadmill (based on codex/combat-pet-weights)
+- Status: in progress
