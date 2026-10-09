@@ -370,3 +370,10 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Note for tests: ScreenGui buttons are clicked at their AbsolutePosition coordinates directly; only SurfaceGuis need y-58.
 - Branch: claude/lighting
 - Status: done — Play-tested: weapon shop opens in the ring with the new stall + preview, BUY click bought Python ($50), Backspace leaves; trail shop BUY click worked; console clean. Place not saved by me — save in Studio.
+
+## Claude — 2026-10-10 02:10 UTC
+- Task: owner's request — NIGHT HUNT every 5 minutes (each animal wave after the first): it turns night for 15 s (blue, readable); a glowing red "GET READY" wall rises along the red line (solid for 10 s, everyone out in the worlds is put back behind the line); big countdown 10..1 then GO!, wall drops; at 15 s the sun comes back. Server message for every rare animal that spawned in the wave (Legendary and above): "🌟 Camel has spawned! LEGENDARY • Desert world" (Yeti = Secret, etc.; goes by AnimalData rarity, so future rarities are covered). The old per-spawn Legendary banner in AnimalManager (Mutation event) is limited to mutations now (one-line change, models/game/AnimalManager.lua) so nothing is announced twice.
+- Files: new models/night/NightService.server.lua (ServerScriptService), NightClient.client.lua (StarterPlayerScripts); remote ReplicatedStorage.NightEvent (Start/Go/End/Rare). Test any time: workspace.Animals:SetAttribute("Wave", <new number>) on the server.
+- Also: StarterGui.GameUI.Frames.Shop (the stray invisible window that ate clicks) is now Visible=false in the place (my earlier change was lost when a playtest ended — Edit-mode changes made while Play is on do not stick).
+- Branch: claude/lighting
+- Status: done — Play-tested full cycle with timings (wall solid 0-10 s, player pushed back behind the line, wall gone after 10 s, day back at ~15 s), countdown + GO + rare message screenshots; console clean. Place not saved by me — save in Studio.

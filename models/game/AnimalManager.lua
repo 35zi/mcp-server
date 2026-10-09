@@ -475,7 +475,7 @@ local function spawnOne(zone)
 	makeTag(record)
 	records[model] = record
 	model.Parent = animalsFolder
-	if mutation ~= "None" or AnimalData.ShouldAnnounce(cfg.rarity) then
+	if mutation ~= "None" then -- rare rarities are announced by NightService now ("Yeti has spawned!")
 		animalEvent:FireAllClients("Mutation", { species = species, mutation = mutation, rarity = cfg.rarity, weight = size.weight, world = worldId })
 	end
 	return record
