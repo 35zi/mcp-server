@@ -1,5 +1,6 @@
 -- BuildDecor (run in Studio's command bar / via MCP, edit mode; safe to re-run: it rebuilds Workspace.Decor)
 --
+-- (World 3 = Workspace.Decor.Snow: snowy pines, snowmen, ice crystals, snow rocks and mounds, igloos)
 -- A few small blocky decorations, in the same chunky style as the animals:
 --   * Workspace.Decor.Forest (World 1, the green floor past the red line): round + pine trees, bushes with
 --     berries, flower patches, rocks, fallen logs - scattered over the whole (big) world
@@ -227,6 +228,99 @@ scatter(-356, -676, 3, 20, function(x, z)
 end)
 
 
+---------------------------------------------------------------- snow pieces (World 3: the white / icy world)
+local snow = decor:FindFirstChild("Snow") or Instance.new("Folder")
+snow.Name = "Snow"
+snow.Parent = decor
+local SNOW, SNOW_SHADE = "#d9e3ee", "#bccbdc" -- not pure white: the scene has bloom, white blows out
+local FIR = { "#2c6b57", "#35806a", "#3f9680" }
+
+local function snowPine(x, z, s)
+	local m, b = newModel(snow, "SnowPine", x, z)
+	block(m, b, "#5e3d24", at(0, 1.5 * s, 0), Vector3.new(1, 3, 1) * s, true)
+	block(m, b, FIR[1], at(0, 3.8 * s, 0), Vector3.new(4.6, 1.8, 4.6) * s, true)
+	block(m, b, SNOW, at(0, 4.85 * s, 0), Vector3.new(4.2, 0.35, 4.2) * s)
+	block(m, b, FIR[2], at(0, 5.7 * s, 0, 0, 45, 0), Vector3.new(3.4, 1.6, 3.4) * s, true)
+	block(m, b, SNOW, at(0, 6.6 * s, 0, 0, 45, 0), Vector3.new(3.1, 0.35, 3.1) * s)
+	block(m, b, FIR[3], at(0, 7.4 * s, 0), Vector3.new(2.2, 1.4, 2.2) * s, true)
+	block(m, b, SNOW, at(0, 8.4 * s, 0), Vector3.new(1.6, 0.9, 1.6) * s, true)
+	m.PrimaryPart = m:GetChildren()[1]
+end
+
+local function snowman(x, z, s)
+	local m, b = newModel(snow, "Snowman", x, z)
+	block(m, b, SNOW, at(0, 1.3 * s, 0), Vector3.new(2.8, 2.6, 2.8) * s, true)
+	block(m, b, SNOW, at(0, 3.5 * s, 0), Vector3.new(2.1, 1.9, 2.1) * s, true)
+	block(m, b, SNOW, at(0, 5.2 * s, 0), Vector3.new(1.5, 1.5, 1.5) * s, true)
+	block(m, b, "#1d1b22", at(0, 6.2 * s, 0), Vector3.new(1.1, 0.7, 1.1) * s) -- hat
+	block(m, b, "#1d1b22", at(0, 5.95 * s, 0), Vector3.new(1.9, 0.12, 1.9) * s)
+	block(m, b, "#e0413a", at(0, 4.4 * s, 0), Vector3.new(1.7, 0.35, 1.7) * s) -- scarf
+	block(m, b, "#ff8c42", at(0, 5.2 * s, -1 * s), Vector3.new(0.25, 0.25, 0.9) * s) -- carrot nose
+	block(m, b, "#1d1b22", at(0.32 * s, 5.5 * s, -0.76 * s), Vector3.new(0.2, 0.2, 0.1) * s)
+	block(m, b, "#1d1b22", at(-0.32 * s, 5.5 * s, -0.76 * s), Vector3.new(0.2, 0.2, 0.1) * s)
+	for i = 1, 3 do
+		block(m, b, "#1d1b22", at(0, (3.9 - i * 0.55) * s, -1.07 * s), Vector3.new(0.22, 0.22, 0.1) * s)
+	end
+	block(m, b, "#6b4426", at(1.9 * s, 4.1 * s, 0, 0, 0, 35), Vector3.new(2, 0.18, 0.18) * s)
+	block(m, b, "#6b4426", at(-1.9 * s, 4.1 * s, 0, 0, 0, -35), Vector3.new(2, 0.18, 0.18) * s)
+	m.PrimaryPart = m:GetChildren()[1]
+end
+
+local function iceCrystal(x, z, s)
+	local m, b = newModel(snow, "IceCrystal", x, z)
+	local shades = { "#9fdcff", "#7cc8f5", "#c4ecff" }
+	for i = 1, 5 do
+		local h = (i == 1 and 6.5 or rng:NextNumber(2.5, 5)) * s
+		local a = i * 1.26
+		local ox, oz = (i == 1 and 0 or math.cos(a) * 1.1) * s, (i == 1 and 0 or math.sin(a) * 1.1) * s
+		local p = block(m, b, shades[i % 3 + 1], at(ox, h / 2 - 0.2 * s, oz, i == 1 and 0 or rng:NextNumber(-12, 12), rng:NextNumber(0, 90), i == 1 and 0 or rng:NextNumber(-12, 12)), Vector3.new(1.1, h, 1.1) * (i == 1 and s * 0.9 or s * 0.7), true)
+		p.Size = Vector3.new(p.Size.X, h, p.Size.Z)
+		p.Material = Enum.Material.Ice
+		p.Transparency = 0.2
+	end
+	block(m, b, SNOW_SHADE, at(0, 0.25 * s, 0), Vector3.new(3.2, 0.5, 3.2) * s)
+	m.PrimaryPart = m:GetChildren()[1]
+end
+
+local function snowRock(x, z, s)
+	local m, b = newModel(snow, "SnowRock", x, z)
+	block(m, b, "#7d8794", at(0, 0.7 * s, 0, 0, 0, 8), Vector3.new(2.4, 1.6, 2) * s, true)
+	block(m, b, "#939dab", at(1.2 * s, 0.45 * s, 0.6 * s, 0, 30, -6), Vector3.new(1.3, 1, 1.2) * s, true)
+	block(m, b, SNOW, at(0, 1.55 * s, 0, 0, 0, 8), Vector3.new(2.1, 0.4, 1.7) * s, true)
+	m.PrimaryPart = m:GetChildren()[1]
+end
+
+local function snowMound(x, z, s)
+	local m, b = newModel(snow, "SnowMound", x, z)
+	block(m, b, SNOW, at(0, 0.5 * s, 0), Vector3.new(3.6, 1, 3) * s)
+	block(m, b, SNOW_SHADE, at(1.4 * s, 0.35 * s, 0.9 * s, 0, 30, 0), Vector3.new(2, 0.7, 1.8) * s)
+	block(m, b, SNOW, at(-0.5 * s, 1.1 * s, -0.2 * s, 0, 15, 0), Vector3.new(2.2, 0.8, 2) * s)
+	block(m, b, FIR[2], at(0.2 * s, 1.9 * s, 0.1 * s), Vector3.new(0.9, 1, 0.9) * s) -- a little spruce tip peeking out
+	block(m, b, "#e0413a", at(0.9 * s, 1.3 * s, 0.9 * s), Vector3.new(0.3, 0.3, 0.3) * s) -- holly berry
+	m.PrimaryPart = m:GetChildren()[1]
+end
+
+local function igloo(x, z, s)
+	local m, b = newModel(snow, "Igloo", x, z)
+	block(m, b, SNOW, at(0, 1.4 * s, 0), Vector3.new(6.4, 2.8, 6.4) * s, true)
+	block(m, b, SNOW_SHADE, at(0, 3.3 * s, 0, 0, 45, 0), Vector3.new(5, 1.6, 5) * s, true)
+	block(m, b, SNOW, at(0, 4.6 * s, 0), Vector3.new(3.2, 1.2, 3.2) * s, true)
+	block(m, b, SNOW_SHADE, at(0, 1.1 * s, -3.9 * s), Vector3.new(2.6, 2.2, 2.4) * s, true) -- entrance tunnel
+	block(m, b, "#2a2f3a", at(0, 1 * s, -5.12 * s), Vector3.new(1.7, 1.8, 0.1) * s)
+	for i = -2, 2 do -- ice-block lines
+		block(m, b, "#c3d3e6", at(i * 1.15 * s, 2.2 * s, 3.22 * s), Vector3.new(0.08, 0.7, 0.05) * s)
+	end
+	m.PrimaryPart = m:GetChildren()[1]
+end
+
+-- World 3: z -686 .. -1006
+scatter(-696, -1000, 3, 60, function(x, z) igloo(x, z, rng:NextNumber(1.8, 2.2)) end)
+scatter(-696, -1000, 14, 28, function(x, z) snowPine(x, z, rng:NextNumber(1.7, 2.3)) end)
+scatter(-696, -1000, 5, 40, function(x, z) snowman(x, z, rng:NextNumber(2.2, 2.8)) end)
+scatter(-696, -1000, 12, 22, function(x, z) iceCrystal(x, z, rng:NextNumber(1.8, 2.6)) end)
+scatter(-696, -1000, 10, 16, function(x, z) snowRock(x, z, rng:NextNumber(1.4, 2.2)) end)
+scatter(-696, -1000, 14, 12, function(x, z) snowMound(x, z, rng:NextNumber(1.6, 2.2)) end)
+
 -- the small pieces without a scale argument grow too (animals are 7-14 studs tall, so decor must not look tiny):
 -- scale each about its middle, then put it back on the floor
 local GROW = { Flowers = 2, Log = 2, DryBush = 2.2, Skull = 2.2 }
@@ -243,4 +337,4 @@ end
 if rec then
 	CHS:FinishRecording(rec, Enum.FinishRecordingOperation.Commit)
 end
-return string.format("Decor: %d forest pieces, %d desert pieces", #forest:GetChildren(), #desert:GetChildren())
+return string.format("Decor: %d forest, %d desert, %d snow pieces", #forest:GetChildren(), #desert:GetChildren(), #snow:GetChildren())

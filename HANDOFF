@@ -242,3 +242,10 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Files: models/game/AnimalMenuClient.client.lua (Index section only; Bag untouched).
 - Branch: claude/bunny-model
 - Status: done — Forest tab checked on screen, console clean (Desert tab/scroll not clicked through in the playtest). Place not saved by me — save in Studio.
+
+## Claude — 2026-10-09 15:30 UTC
+- Task: owner's request — decoration for World 3 (the white/icy world, z -686..-1006): Workspace.Decor.Snow = 14 snowy pines, 5 snowmen, 12 ice crystals, 10 snow-capped rocks, 14 snow mounds, 3 igloos, all sized a bit above the animals. World 3 has no animals yet.
+- Files: models/game/BuildDecor.lua (new snow pieces + World 3 scatter, appended after the desert so Forest/Desert layouts are unchanged). Studio: Workspace.Decor.Snow added (others untouched).
+- Note: the Studio session I reconnected to shows a different HUD (SPEED / BASE / WEAPONS, SHOP, INDEX) than my AnimalMenu tiles — Codex's UI may have replaced mine there.
+- Branch: claude/bunny-model
+- Status: done — viewed in game, console clean. Place not saved by me — save in Studio.
