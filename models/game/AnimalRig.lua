@@ -9,6 +9,8 @@ Rig.Profiles = {
  Fox={family="Quadruped",stride=2.8}, Camel={family="Quadruped",stride=1.5,pace=true},
  Duckling={family="Bird",stride=3.4}, Turkey={family="Bird",stride=3.0}, Vulture={family="Bird",stride=2.4},
  Spider={family="Crawler",stride=5.5}, Scorpion={family="Crawler",stride=4.5},
+ Penguin={family="Bird",stride=3.2}, SnowFox={family="Quadruped",stride=2.8}, Wolf={family="Quadruped",stride=2.6},
+ PolarBear={family="Quadruped",stride=1.6}, Yeti={family="Biped",stride=1.5},
 }
 function Rig.Profile(species) return Rig.Profiles[species] or {family="Quadruped",stride=3} end
 function Rig.IsWalker(species) return Rig.Profile(species).family ~= "Hopper" end
@@ -92,6 +94,7 @@ function Rig.Build(model, species)
     phase=((idx+(side>0 and 1 or 0))%2)*math.pi
    elseif Rig.Profile(species).pace then phase=side>0 and 0 or math.pi
    else phase=((front and side>0) or (not front and side<0)) and 0 or math.pi end
+  elseif role=="Arm" then phase=side>0 and math.pi or 0
   else phase=0 end
   local g={part=p,role=role,parent=parent or body,pivot=pivot or p.Position,side=side,phase=phase,front=front}
   table.insert(groups,g) anchors[p]=g
@@ -111,6 +114,8 @@ function Rig.Build(model, species)
     add(p,"Leg",body,p.Position+Vector3.yAxis*extent(p,Vector3.yAxis)*0.85)
    elseif n:match("^FrontPaw[LR]$") or n:match("^Front_Leg_") then
     add(p,"FrontLeg",body,p.Position+Vector3.yAxis*extent(p,Vector3.yAxis)*0.8)
+   elseif n=="Arm" then
+    add(p,"Arm",body,p.Position+Vector3.yAxis*extent(p,Vector3.yAxis)*0.3)
    elseif n:match("^Haunch[LR]$") or n:match("^Hind_Thigh_") then
     add(p,"HindLeg",body,p.Position+Vector3.yAxis*extent(p,Vector3.yAxis)*0.55)
    elseif n=="Wing" or n:match("^Wing_%-?1$") then
@@ -175,6 +180,7 @@ function Rig.Build(model, species)
     parent=nearest(p.Position,{Fan=true}) or nearest(p.Position,{Wing=true},side) or body
    elseif n:find("Wing",1,true) then parent=nearest(p.Position,{Wing=true},side) or body
    elseif n:find("Claw",1,true) or n:find("Pincer",1,true) then parent=nearest(p.Position,{Claw=true},side) or body
+   elseif n:find("Arm",1,true) then parent=nearest(p.Position,{Arm=true},side) or body
    elseif n:find("Hind",1,true) or n:find("Haunch",1,true) or n:find("Back_Toe",1,true) then
     parent=nearest(p.Position,{HindLeg=true},side) or body
    elseif n:find("Leg",1,true) or n:find("Foot",1,true) or n:find("Toe",1,true) or n=="Sock" then
@@ -219,6 +225,13 @@ function Rig.Pose(binding,t,moving,hopProgress,disabled,dt)
  local sniff=math.sin(t*10)*math.clamp(math.sin(t*0.8)*3,0,1)*(1-move)
  local hop=math.sin(math.pi*(hopProgress or 0))*move
  local gait=t*profile.stride*math.pi*2
+ -- a punch (Yeti): the server sets model attribute PunchAt = server time; both arms swing up and forward
+ local punch=0
+ local punchAt=binding.model:GetAttribute("PunchAt")
+ if punchAt then
+  local e=workspace:GetServerTimeNow()-punchAt
+  if e>=0 and e<0.55 then punch=math.sin(math.pi*e/0.55) end
+ end
  for _,g in binding.joints do
   local x,y,z=0,0,0
   local r=g.role
@@ -232,7 +245,7 @@ function Rig.Pose(binding,t,moving,hopProgress,disabled,dt)
     x=0.04*math.sin(t*1.7)+0.6*hop+(flick<0.24 and 0.38*math.sin(flick/0.24*math.pi) or 0)*(1-move)
     z=0.02*g.side*breath
    elseif r=="Tail" or r=="TailSegment" then
-    y=(binding.species=="Fox" and 0.22 or 0.08)*math.sin(t*2.3-g.phase)*(0.5+move)
+    y=((binding.species=="Fox" or binding.species=="SnowFox" or binding.species=="Wolf") and 0.22 or 0.08)*math.sin(t*2.3-g.phase)*(0.5+move)
     x=binding.species=="Scorpion" and 0.035*math.sin(t*1.4-g.phase) or 0
    elseif r=="FrontLeg" then x=-0.35*hop
    elseif r=="HindLeg" then x=0.55*hop
@@ -240,6 +253,7 @@ function Rig.Pose(binding,t,moving,hopProgress,disabled,dt)
     local swing=math.sin(gait+g.phase)*move
     if profile.family=="Crawler" then y=0.18*swing z=g.side*0.14*math.max(0,swing)
     else x=(binding.species=="Camel" and 0.24 or 0.38)*swing end
+   elseif r=="Arm" then x=0.32*math.sin(gait+g.phase)*move+1.5*punch
    elseif r=="Wing" then
     local stretch=math.max(0,math.sin(t*0.9))^12
     z=g.side*(0.025*breath+0.25*stretch*(1-move)+0.045*move)

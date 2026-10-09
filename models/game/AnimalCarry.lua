@@ -3,7 +3,8 @@
 -- What happens when an animal is shot down (its health reaches 0):
 --   1. it isn't dead, it's STUNNED: it topples over and lies in Workspace.AnimalBodies for STUN_TIME seconds
 --      (model attribute StunEnd = server time it wakes up; AnimalClient shows stars + a countdown). No money is paid.
---   2. only the player who shot it can pick it up (ProximityPrompt, E) - you carry one at a time, slung over your
+--   2. only the player who shot it can pick it up (ProximityPrompt, E) - EXCEPT after a carrier was shot and
+--      dropped it (KnockOff with steal): then anyone may grab it, and whoever does becomes its owner - you carry one at a time, slung over your
 --      right shoulder (hanging head-down your back, your right arm raised holding it; tools are put away meanwhile).
 --      Picking it up stops the timer. Drop it (G / the Drop button, or by dying) and the timer starts over.
 --   3. carry it over the red line (Workspace.RedLine, back towards the plots) and it goes into your inventory
@@ -25,7 +26,6 @@ local AnimalCarry = {}
 local STUN_TIME = AnimalData.StunTime or 10 -- seconds a stunned animal lies there before it wakes up (restarts when dropped)
 local STANDUP_TIME = 0.4
 local PICKUP_DISTANCE = 12
-local MAX_CARRY_SIZE = 3.6 -- studs: bigger bodies are shrunk while carried so they fit on your shoulder
 local TOPPLE_TIME = 0.3
 
 local bodiesFolder = workspace:FindFirstChild("AnimalBodies")
@@ -99,7 +99,7 @@ local function groundBelow(position)
 end
 
 local function displayName(info)
-	return AnimalData.DisplayName(info.species, info.size, info.mutation)
+	return AnimalData.DisplayName(info.species, info.weight or info.size, info.mutation)
 end
 
 local function notify(player, text)
@@ -129,18 +129,6 @@ local function carryPose(info, torso)
 	local y = torso.Size.Y / 2 + 0.3 - info.length / 2 -- hind end just above the shoulder
 	local z = torso.Size.Z / 2 + 0.02 -- against the back
 	return CFrame.new(x, y, z) * HANG
-end
-
-local function setScale(body, k)
-	-- shrink (k < 1) or restore the body, keeping the stored pose offsets in step
-	local info = body.info
-	body.model:ScaleTo(body.model:GetScale() * k)
-	for i, o in ipairs(info.offsets) do
-		info.offsets[i] = o - o.Position + o.Position * k
-	end
-	info.height *= k
-	info.width *= k
-	info.length *= k
 end
 
 ---------------------------------------------------------------- bodies on the ground
@@ -261,7 +249,7 @@ function AnimalCarry.AddBody(model, info, owner)
 	layDown(body, info.pos, true)
 	animalEvent:FireClient(owner, "Killed", {
 		species = info.species,
-		size = info.size,
+		weight = info.weight or AnimalData.Weight(info.species, info.size),
 		mutation = info.mutation,
 		rarity = info.rarity,
 	})
@@ -273,7 +261,7 @@ end
 
 ---------------------------------------------------------------- carrying
 pickUp = function(player, body)
-	if body.carried or not body.model.Parent or player.UserId ~= body.ownerId then
+	if body.carried or not body.model.Parent or (player.UserId ~= body.ownerId and not body.open) then
 		return
 	end
 	if carrying[player] then
@@ -291,6 +279,12 @@ pickUp = function(player, body)
 	end
 
 	body.carried = true
+	if body.open then
+		-- it was knocked out of someone's hands: whoever grabs it first owns it now
+		body.open = false
+		body.ownerId = player.UserId
+		body.model:SetAttribute("OwnerUserId", player.UserId)
+	end
 	body.expires = nil -- the stun timer stops while it's carried
 	body.model:SetAttribute("StunEnd", nil)
 	carrying[player] = body
@@ -299,11 +293,6 @@ pickUp = function(player, body)
 		body.prompt = nil
 	end
 	local info = body.info
-	local biggest = math.max(info.height, info.width, info.length)
-	body.carryScale = math.min(1, MAX_CARRY_SIZE / biggest)
-	if body.carryScale < 0.999 then
-		setScale(body, body.carryScale)
-	end
 
 	-- hands free: put any tool away, and keep it away while carrying
 	humanoid:UnequipTools()
@@ -366,9 +355,6 @@ local function drop(player, destroy)
 		p.Anchored = true
 		p.Massless = false
 	end
-	if body.carryScale and body.carryScale < 0.999 then
-		setScale(body, 1 / body.carryScale)
-	end
 	body.carried = false
 	layDown(body, position, false)
 end
@@ -381,7 +367,8 @@ local function deliver(player, body)
 	local info = body.info
 	InventoryAdapter.Add(player, {
 		Species = info.species,
-		Size = info.size,
+		WeightKg = info.weight or AnimalData.Weight(info.species, info.size),
+		Scale = info.scale or AnimalData.WeightTraits(info.species, info.weight or info.size).scale,
 		Mutation = info.mutation,
 		Rarity = info.rarity,
 		World = info.world,
@@ -397,12 +384,37 @@ local function deliver(player, body)
 	end
 	animalEvent:FireClient(player, "Delivered", {
 		species = info.species,
-		size = info.size,
+		weight = info.weight or AnimalData.Weight(info.species, info.size),
 		mutation = info.mutation,
 		rarity = info.rarity,
 		value = info.value,
 		firstTime = count == 1,
 	})
+end
+
+-- the carrier got hit (shot by another player, punched by a Yeti): they drop it on the spot.
+-- steal = true: ANYONE may pick it up now (until its stun timer runs out). message: "%s" = the animal's name.
+function AnimalCarry.KnockOff(player, steal, message)
+	local body = carrying[player]
+	if not body then
+		return false
+	end
+	if steal then
+		body.open = true
+		body.model:SetAttribute("OwnerUserId", nil) -- every client shows the pick-up prompt again
+	end
+	drop(player)
+	if steal and body.prompt then
+		body.prompt.ActionText = "Steal"
+	end
+	if message then
+		notify(player, string.format(message, displayName(body.info)))
+	end
+	return true
+end
+
+function AnimalCarry.IsCarrying(player)
+	return carrying[player] ~= nil
 end
 
 ---------------------------------------------------------------- start
@@ -480,4 +492,3 @@ function AnimalCarry.Start()
 end
 
 return AnimalCarry
-

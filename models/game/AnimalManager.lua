@@ -8,17 +8,20 @@
 --   Spawn zones: every Part in Workspace.AnimalSpawnZones (invisible boxes; move/resize them in Studio).
 --                Attribute World = which world's animals spawn there (default 1); Population = most alive at once (default 5)
 --   Decor:       Workspace.Decor (trees, rocks...): animals spawn away from it, walk around it, never stand on it
---   Live:        Workspace.Animals (Models with attributes Species, Rarity, World, Size, Mutation, Health, MaxHealth,
+--   Live:        Workspace.Animals (Models with attributes Species, Rarity, World, WeightKg, Mutation, Health, MaxHealth,
 --                Hop, Land)
 --
 -- Waves: one at server start, then every WAVE_INTERVAL seconds. Animals that survived MAX_AGE_WAVES waves are
 -- replaced, then every zone is topped back up to its Population.
 -- Species: picked by rarity inside the zone's world (Common is almost guaranteed, Legendary is rare).
--- Sizes: each spawn rolls Small / Medium / Large (scale, HP and value change with it).
+-- Each spawn rolls kilograms; cube-root mass scaling preserves proportions across all contexts.
 -- Mutations (rare): Gold = gold tint + sparkles + outline + 5x value; Silver = silver tint + 30% more HP.
 -- Shooting it down: when Health reaches 0 the animal is STUNNED (not dead); AnimalCarry takes over (pick up, carry
 -- over the red line, then it goes into the inventory). If nobody does that in time it wakes up: Revive() makes it a
 -- live animal again with full health. Stunned animals still count towards their zone's Population. No money here.
+-- Aggressive species (AnimalData aggressive = true, the Yeti): instead of wandering it walks after the nearest player
+-- inside its zone (aggroRange) - or whoever shot it - and punches them: knockback + ragdoll (PlayerKnockback), and
+-- they drop whatever animal they carry. It never leaves its zone and never runs away.
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -27,6 +30,7 @@ local ServerStorage = game:GetService("ServerStorage")
 local AnimalData = require(ReplicatedStorage:WaitForChild("AnimalData"))
 local AnimalRig = require(ReplicatedStorage:WaitForChild("AnimalRig"))
 local AnimalCarry = require(script.Parent:WaitForChild("AnimalCarry"))
+local PlayerKnockback = require(script.Parent:WaitForChild("PlayerKnockback"))
 
 local AnimalManager = {}
 
@@ -39,11 +43,6 @@ local MIN_SPACING = 7 -- studs between spawned animals
 local ZONE_MARGIN = 3 -- keep animals this far inside a zone's edges
 
 local SPECIES = AnimalData.Species
-local SIZES = {
-	{ name = "Small", scale = 0.75, chance = 0.35, hp = 0.75, value = 0.8 },
-	{ name = "Medium", scale = 1.0, chance = 0.45, hp = 1.0, value = 1.0 },
-	{ name = "Large", scale = 1.35, chance = 0.20, hp = 1.5, value = 1.5 },
-}
 local MUTATIONS = {
 	Gold = { chance = 0.015, tint = Color3.fromRGB(255, 196, 30), tintAmount = 0.85, reflectance = 0.25, hp = 1.0, value = 5 },
 	Silver = { chance = 0.025, tint = Color3.fromRGB(205, 215, 230), tintAmount = 0.8, reflectance = 0.3, hp = 1.3, value = 1 },
@@ -170,12 +169,6 @@ local function rollSpecies(worldId)
 	return pickWeighted(available, function(name)
 		local r = SPECIES[name].rarity
 		return AnimalData.Rarities[r].weight / tierCount[r]
-	end)
-end
-
-local function rollSize()
-	return pickWeighted(SIZES, function(s)
-		return s.chance
 	end)
 end
 
@@ -325,17 +318,8 @@ local function showHealth(record)
 end
 
 ---------------------------------------------------------------- building a model
-local function sizeByName(name)
-	for _, s in ipairs(SIZES) do
-		if s.name == name then
-			return s
-		end
-	end
-	return SIZES[2]
-end
-
 -- a dressed copy of a species' template (anchored, no scripts, sized, mutation look); nil if there is no template
-function AnimalManager.BuildModel(species, sizeName, mutation)
+function AnimalManager.BuildModel(species, weight, mutation)
 	local template = templates:FindFirstChild(species)
 	if not template then
 		return nil
@@ -354,13 +338,15 @@ function AnimalManager.BuildModel(species, sizeName, mutation)
 	if not model.PrimaryPart then
 		model.PrimaryPart = model:FindFirstChild("Body", true) or model:FindFirstChildWhichIsA("BasePart", true)
 	end
-	local size = sizeByName(sizeName)
+	local size = AnimalData.WeightTraits(species, weight)
 	if size.scale ~= 1 then
 		-- relative to the template's own scale (imported meshes are stored at e.g. 0.017, not 1)
 		model:ScaleTo(model:GetScale() * size.scale)
 	end
 	applyMutationLook(model, mutation or "None")
 	model.Name = species
+	model:SetAttribute("WeightKg",size.weight)
+	model:SetAttribute("Scale",size.scale)
 	AnimalRig.Build(model, species)
 	AnimalRig.SetAnchored(model, true)
 	return model
@@ -431,9 +417,9 @@ local function spawnOne(zone)
 	end
 
 	local cfg = SPECIES[species]
-	local size = rollSize()
+	local size = AnimalData.WeightTraits(species, AnimalData.RollWeight(species, rng))
 	local mutation = rollMutation()
-	local model = AnimalManager.BuildModel(species, size.name, mutation)
+	local model = AnimalManager.BuildModel(species, size.weight, mutation)
 	local parts, offsets, boxSize = AnimalManager.RootOffsets(model)
 
 	nextId += 1
@@ -443,7 +429,7 @@ local function spawnOne(zone)
 	model:SetAttribute("Species", species)
 	model:SetAttribute("Rarity", cfg.rarity)
 	model:SetAttribute("World", worldId)
-	model:SetAttribute("Size", size.name)
+	model:SetAttribute("WeightKg", size.weight)
 	model:SetAttribute("Scale", size.scale)
 	model:SetAttribute("Mutation", mutation)
 	model:SetAttribute("MaxHealth", maxHealth)
@@ -490,7 +476,7 @@ local function spawnOne(zone)
 	records[model] = record
 	model.Parent = animalsFolder
 	if mutation ~= "None" or AnimalData.ShouldAnnounce(cfg.rarity) then
-		animalEvent:FireAllClients("Mutation", { species = species, mutation = mutation, rarity = cfg.rarity, size = size.name, world = worldId })
+		animalEvent:FireAllClients("Mutation", { species = species, mutation = mutation, rarity = cfg.rarity, weight = size.weight, world = worldId })
 	end
 	return record
 end
@@ -603,8 +589,104 @@ local function beginHop(record)
 	end
 end
 
+---------------------------------------------------------------- aggressive animals (Yeti): chase + punch
+-- who it goes after: whoever shot it (if still in its zone and not too far), otherwise the nearest player in its zone
+local function pickTarget(record)
+	local range = record.cfg.aggroRange or 50
+	local best, bestScore = nil, math.huge
+	for _, player in ipairs(Players:GetPlayers()) do
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if humanoid and humanoid.Health > 0 and root and insideZone(record.zone, root.Position) then
+			local d = Vector3.new(root.Position.X - record.pos.X, 0, root.Position.Z - record.pos.Z).Magnitude
+			local shooter = player == record.aggroPlayer
+			if d < (shooter and range * 1.6 or range) then
+				local score = shooter and d - 25 or d
+				if score < bestScore then
+					best, bestScore = player, score
+				end
+			end
+		end
+	end
+	return best
+end
+
+-- one frame of chasing; returns the root CFrame, or nil when nobody is around (then it wanders like the others)
+local function chaseStep(record, dt)
+	local cfg = record.cfg
+	local now = os.clock()
+	if now >= (record.nextTargetCheck or 0) then
+		record.nextTargetCheck = now + 0.3
+		record.target = pickTarget(record)
+	end
+	local target = record.target
+	local root = target and target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		if record.chasing then
+			record.chasing = false
+			record.state, record.stateT, record.idleDur, record.hopsLeft = "idle", 0, 0.8, 0
+		end
+		return nil
+	end
+	record.chasing = true
+	record.fleeing = false
+	record.clock += dt
+	local scale = record.size.scale
+	local delta = Vector3.new(root.Position.X - record.pos.X, 0, root.Position.Z - record.pos.Z)
+	local dist = delta.Magnitude
+	if dist > 0.1 then
+		record.targetYaw = math.atan2(-delta.X, -delta.Z)
+	end
+	record.yaw += math.clamp(angleDiff(record.yaw, record.targetYaw), -6 * dt, 6 * dt)
+
+	local reach = record.length * 0.45 + 3
+	local moving = false
+	if dist > reach + 0.5 then -- (the margin: it walks up to `reach`, so it must count as "in reach" once there)
+		local nextPos = record.pos + delta.Unit * math.min((cfg.chaseSpeed or 12) * dt, dist - reach)
+		if insideZone(record.zone, nextPos) then
+			local y = groundAt(nextPos.X, nextPos.Z, nextPos.Y + 8)
+			record.pos = Vector3.new(nextPos.X, y or record.pos.Y, nextPos.Z)
+			moving = true
+		end
+	elseif now >= (record.nextPunch or 0) and math.abs(angleDiff(record.yaw, record.targetYaw)) < 0.6 and PlayerKnockback.Vulnerable(target, 1.5) then
+		record.nextPunch = now + (cfg.punchCooldown or 1.6)
+		record.model:SetAttribute("PunchAt", workspace:GetServerTimeNow()) -- AnimalRig swings the arms
+		local victim = target
+		task.delay(0.28, function()
+			local r = victim.Character and victim.Character:FindFirstChild("HumanoidRootPart")
+			if record.dead or not record.model.Parent or not r then
+				return
+			end
+			local d = Vector3.new(r.Position.X - record.pos.X, 0, r.Position.Z - record.pos.Z).Magnitude
+			if d <= reach + 4 then
+				AnimalCarry.KnockOff(victim, false, "The " .. AnimalData.PrettyName(record.species) .. " punched you and you dropped your %s!")
+				PlayerKnockback.Knock(victim, record.pos, cfg.punchPower or 70, 1.6)
+				animalEvent:FireAllClients("Punch", { position = r.Position, species = record.species, victim = victim.UserId })
+			end
+		end)
+	end
+
+	local state = moving and "hop" or "idle"
+	if record.animState ~= state then
+		record.animState = state
+		record.state, record.stateT = state, 0
+		record.model:SetAttribute("AnimState", state)
+		record.model:SetAttribute("AnimStartedAt", workspace:GetServerTimeNow())
+		record.model:SetAttribute("AnimDuration", cfg.hopTime)
+	end
+	local yOff = moving and 0.12 * scale * math.abs(math.sin(record.clock * 9)) or 0.04 * scale * math.sin(record.clock * 2.6)
+	return CFrame.new(record.pos + Vector3.new(0, yOff, 0)) * CFrame.Angles(0, record.yaw, 0)
+end
+
 local function step(record, dt)
 	local cfg = record.cfg
+	if cfg.aggressive then
+		local cf = chaseStep(record, dt)
+		if cf then
+			return cf
+		end
+	end
 	local walk = AnimalRig.IsWalker(record.species)
 	local scale = record.size.scale
 	local hopTime = cfg.hopTime * (record.fleeing and 0.75 or 1)
@@ -723,7 +805,8 @@ function AnimalManager.Damage(record, amount, player, hitPos)
 			species = record.species,
 			rarity = record.cfg.rarity,
 			world = record.worldId,
-			size = record.size.name,
+			weight = record.size.weight,
+			scale = record.size.scale,
 			mutation = record.mutation,
 			value = record.value,
 			parts = record.parts,
@@ -740,6 +823,12 @@ function AnimalManager.Damage(record, amount, player, hitPos)
 	end
 
 	showHealth(record)
+	if record.cfg.aggressive then
+		-- it doesn't run away: it goes after whoever shot it
+		record.aggroPlayer = player
+		record.nextTargetCheck = 0
+		return "hit"
+	end
 	local character = player.Character
 	local from = character and character:FindFirstChild("HumanoidRootPart")
 	startWander(record, from and from.Position or hitPos)
@@ -797,7 +886,7 @@ function AnimalManager.Revive(model, info, position)
 		model = model,
 		species = info.species,
 		cfg = cfg,
-		size = sizeByName(info.size),
+		size = AnimalData.WeightTraits(info.species, info.weight or info.size),
 		mutation = info.mutation,
 		zone = zone,
 		worldId = info.world,
@@ -839,4 +928,3 @@ end
 AnimalCarry.OnRevive(AnimalManager.Revive)
 
 return AnimalManager
-

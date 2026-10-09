@@ -7,7 +7,9 @@
 --   * "<animal> STUNNED!" hint for the shooter, then "CAUGHT!" popup + cash-register sound once it's carried over the
 --     red line (AnimalCarry); stunned animals show wobbling stars and a countdown until they wake up
 --   * pick-up prompts on dead animals and plot animals only show for their owner
---   * a banner for everyone when a Legendary or a Gold / Silver animal appears
+--   * a banner for everyone when a Legendary or a Gold / Silver animal appears; a SECRET one (the Yeti) gets a big
+--     rainbow banner and a line in the chat so the whole server goes after it
+--   * a thump when an aggressive animal (Yeti) punches someone
 --   * a small HUD (bottom left): time until the next wave, animals in your bag + plot income, your Cash
 --   * anyone carrying an animal (player attribute Carrying): their right arm is raised, holding it on the shoulder
 -- Look: ReplicatedStorage.UIStyle.
@@ -16,6 +18,7 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
+local TextChatService = game:GetService("TextChatService")
 local Debris = game:GetService("Debris")
 
 local AnimalData = require(ReplicatedStorage:WaitForChild("AnimalData"))
@@ -198,6 +201,27 @@ local function banner(message, color, duration)
 		fade.Completed:Wait()
 		label:Destroy()
 	end)
+	return label
+end
+
+-- a line in the chat window (RBXGeneral) for this client, coloured
+local function systemChat(message, hex)
+	pcall(function()
+		local channels = TextChatService:FindFirstChild("TextChannels")
+		local general = channels and channels:FindFirstChild("RBXGeneral")
+		if general then
+			general:DisplaySystemMessage(string.format('<font color="%s"><b>%s</b></font>', hex, message))
+		end
+	end)
+end
+
+local function worldName(id)
+	for _, w in ipairs(AnimalData.Worlds) do
+		if w.id == id then
+			return "the " .. w.name .. " World"
+		end
+	end
+	return "World " .. tostring(id or 1)
 end
 
 local popupToken = 0
@@ -220,7 +244,7 @@ local function caughtPopup(data)
 	})
 	UIStyle.corner(frame, 18)
 	UIStyle.stroke(frame, 4)
-	UIStyle.gradient(frame, UIStyle.rarityGradient(rarity), rarity == "Legendary" and 0 or 90)
+	UIStyle.gradient(frame, UIStyle.rarityGradient(rarity), (rarity == "Legendary" or rarity == "Secret") and 0 or 90)
 	local vp = UIStyle.picture({ Position = UDim2.fromOffset(14, 14), Size = UDim2.fromOffset(126, 126), Parent = frame })
 	UIStyle.showModel(vp, previews and previews:FindFirstChild(data.species))
 	text({
@@ -236,7 +260,7 @@ local function caughtPopup(data)
 	text({
 		Position = UDim2.fromOffset(154, 66),
 		Size = UDim2.new(1, -164, 0, 36),
-		Text = AnimalData.DisplayName(data.species, data.size, data.mutation),
+		Text = AnimalData.DisplayName(data.species, data.weight or data.size, data.mutation),
 		TextSize = 30,
 		TextColor3 = nameColor,
 		Parent = frame,
@@ -297,9 +321,9 @@ animalEvent.OnClientEvent:Connect(function(kind, data)
 		end
 	elseif kind == "Delivered" then
 		caughtPopup(data)
-		playSound("Catch", nil, 1, (data.mutation == "Gold" or data.rarity == "Legendary") and 1.2 or 1)
+		playSound("Catch", nil, 1, (data.mutation == "Gold" or data.rarity == "Legendary" or data.rarity == "Secret") and 1.2 or 1)
 	elseif kind == "Killed" then
-		banner(string.format("💫 %s STUNNED! Grab it (E) before it wakes up!", string.upper(AnimalData.DisplayName(data.species, data.size, data.mutation))), WHITE, 3)
+		banner(string.format("💫 %s STUNNED! Grab it (E) before it wakes up!", string.upper(AnimalData.DisplayName(data.species, data.weight or data.size, data.mutation))), WHITE, 3)
 	elseif kind == "Notice" then
 		banner(data.text, WHITE, 2.5)
 	elseif kind == "Mutation" then
@@ -312,13 +336,27 @@ animalEvent.OnClientEvent:Connect(function(kind, data)
 		if data.mutation and data.mutation ~= "None" then
 			table.insert(parts, string.upper(data.mutation))
 		end
-		table.insert(parts, string.upper(data.species))
+		table.insert(parts, string.upper(AnimalData.PrettyName(data.species)))
 		local rarity = AnimalData.Rarities[data.rarity]
 		local color = special and rarity and rarity.color or data.mutation == "Gold" and GOLD or data.mutation == "Silver" and SILVER or WHITE
-		banner(string.format("%sA %s appeared in World %d!", special and "🌟 " or "", table.concat(parts, " "), data.world or 1), color, special and 6 or 4)
-		if special then
-			playSound("Catch", nil, 0.8, 1.2)
+		if data.rarity == "Secret" then
+			-- the big one: a rainbow banner for everyone + a line in the chat
+			local name = string.upper(AnimalData.DisplayName(data.species, nil, data.mutation))
+			local message = string.format("🌈 A SECRET %s HAS SPAWNED IN %s! GO GET IT! 🌈", name, string.upper(worldName(data.world)))
+			UIStyle.rainbow(banner(message, WHITE, 9))
+			playSound("Catch", nil, 0.6, 1.5)
+			systemChat(message, "#ff78dc")
+		else
+			banner(string.format("%sA %s appeared in %s!", special and "🌟 " or "", table.concat(parts, " "), worldName(data.world)), color, special and 6 or 4)
+			if special then
+				playSound("Catch", nil, 0.8, 1.2)
+			end
 		end
+	elseif kind == "Punch" then
+		-- an aggressive animal (Yeti) punched someone
+		playSound("Impact", data.position, 0.6, 1.4)
+		holder.Position = data.position
+		poof:Emit(10)
 	end
 end)
 

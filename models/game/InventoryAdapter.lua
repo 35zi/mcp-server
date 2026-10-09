@@ -2,7 +2,7 @@
 --
 -- TEMPORARY INVENTORY. The game has no real inventory yet, so delivered animals are kept here for the session only
 -- (NOT saved). Each animal becomes a Folder inside player.AnimalInventory (it replicates, so clients can list it):
---   name = its Id; attributes Id, Species ("Frog"), Size ("Small" | "Medium" | "Large"),
+--   name = its Id; attributes Id, Species ("Frog"), WeightKg, Scale,
 --   Mutation ("None" | "Gold" | "Silver"), Rarity, World, Value (number, for selling later), CaughtAt,
 --   Income (Cash per second while on the plot, from AnimalData.Income),
 --   State ("Bag" = in the inventory, "Held" = in the player's hand, "Plot" = placed on their plot)
@@ -30,12 +30,14 @@ function InventoryAdapter.Add(player, entry)
 	item.Name = tostring(nextId)
 	item:SetAttribute("Id", nextId)
 	item:SetAttribute("Species", entry.Species)
-	item:SetAttribute("Size", entry.Size)
+	local weight=AnimalData.Weight(entry.Species, entry.WeightKg or entry.Size)
+	item:SetAttribute("WeightKg", weight)
+	item:SetAttribute("Scale", AnimalData.WeightTraits(entry.Species,weight).scale)
 	item:SetAttribute("Mutation", entry.Mutation)
 	item:SetAttribute("Rarity", entry.Rarity)
 	item:SetAttribute("World", entry.World)
 	item:SetAttribute("Value", entry.Value)
-	item:SetAttribute("Income", AnimalData.Income(entry.Species, entry.Size, entry.Mutation))
+	item:SetAttribute("Income", AnimalData.Income(entry.Species, weight, entry.Mutation))
 	item:SetAttribute("CaughtAt", os.time())
 	item:SetAttribute("State", "Bag")
 	item.Parent = folder

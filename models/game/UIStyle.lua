@@ -10,7 +10,8 @@
 --   UIStyle.window(props)               panel with header (props.Title, props.Icon) -> window, body, closeButton
 --   UIStyle.tile(props)                 side-menu tile (props.Icon, props.Label) -> button, badge
 --   UIStyle.pill(props)                 small outlined label on a coloured background
---   UIStyle.rarityGradient(rarity)      ColorSequence for a rarity (Legendary = rainbow)
+--   UIStyle.rarityGradient(rarity)      ColorSequence for a rarity (Legendary / Secret = rainbow)
+--   UIStyle.rainbow(guiObject, rot)     moving rainbow UIGradient (Secret animals: Index cards, names, banner)
 --   UIStyle.pop(guiObject)              quick "pop in" scale animation
 local TweenService = game:GetService("TweenService")
 
@@ -31,7 +32,19 @@ UIStyle.Colors = {
 	Tile = Color3.fromRGB(44, 44, 58),
 }
 
+local RAINBOW = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 70, 90)),
+	ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255, 160, 40)),
+	ColorSequenceKeypoint.new(0.33, Color3.fromRGB(255, 235, 60)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(80, 235, 110)),
+	ColorSequenceKeypoint.new(0.67, Color3.fromRGB(60, 200, 255)),
+	ColorSequenceKeypoint.new(0.83, Color3.fromRGB(150, 100, 255)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 90, 220)),
+})
+
 local RARITY = {
+	Epic = ColorSequence.new(Color3.fromRGB(210, 150, 255), Color3.fromRGB(120, 50, 220)),
+	Secret = RAINBOW,
 	Common = ColorSequence.new(Color3.fromRGB(215, 218, 228), Color3.fromRGB(140, 145, 162)),
 	Uncommon = ColorSequence.new(Color3.fromRGB(140, 240, 90), Color3.fromRGB(38, 168, 60)),
 	Rare = ColorSequence.new(Color3.fromRGB(100, 205, 255), Color3.fromRGB(40, 100, 235)),
@@ -80,6 +93,31 @@ end
 
 function UIStyle.rarityGradient(rarity)
 	return RARITY[rarity] or RARITY.Common
+end
+
+-- a rainbow UIGradient on `parent` that keeps turning (one shared loop for all of them; clients only)
+local rainbows = setmetatable({}, { __mode = "k" })
+local rainbowLoop = nil
+function UIStyle.rainbow(parent, rotation)
+	local gradient = Instance.new("UIGradient")
+	gradient.Name = "Rainbow"
+	gradient.Color = RAINBOW
+	gradient.Rotation = rotation or 0
+	gradient.Parent = parent
+	rainbows[gradient] = rotation or 0
+	if not rainbowLoop then
+		rainbowLoop = game:GetService("RunService").RenderStepped:Connect(function()
+			local spin = (os.clock() * 70) % 360
+			for g, base in pairs(rainbows) do
+				if g.Parent then
+					g.Rotation = (base + spin) % 360
+				else
+					rainbows[g] = nil
+				end
+			end
+		end)
+	end
+	return gradient
 end
 
 function UIStyle.darker(color, amount)

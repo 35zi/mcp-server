@@ -203,11 +203,11 @@ local function renderPets()
   local c=card(scroller,"Pet_"..tostring(a.Id),i,a.Rarity)
   c:SetAttribute("EntryId",a.Id) c:SetAttribute("State",a.State)
   picture(c,species,false,a.Mutation)
-  -- Pet pictures leave room for two action buttons.
+  -- Equipped summary: preview, weight, variant and income.
   c.Preview.Size=UDim2.fromScale(.90,.42)
   label("Name",c,string.upper(prettyName(species)),UDim2.fromScale(.02,.47),UDim2.fromScale(.96,.10),18)
   if a.Rarity=="Secret" then UIStyle.rainbow(c:FindFirstChild("Name")) end
-  local variant=string.upper(a.Size or "Medium")..(a.Mutation and a.Mutation~="None" and (" • "..string.upper(a.Mutation)) or "")
+  local variant=data.WeightText(data.Weight(species, a.WeightKg or a.Size))..(a.Mutation and a.Mutation~="None" and (" • "..string.upper(a.Mutation)) or "")
   label("Variant",c,variant,UDim2.fromScale(.02,.59),UDim2.fromScale(.96,.08),11)
   label("Income",c,"$"..data.Commas(a.Income or 0).."/s",UDim2.fromScale(.02,.69),UDim2.fromScale(.96,.10),18,green)
   c.Preview.Position=UDim2.fromScale(.02,.04) c.Preview.Size=UDim2.fromScale(.30,.90)
