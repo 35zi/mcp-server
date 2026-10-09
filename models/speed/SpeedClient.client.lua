@@ -269,7 +269,7 @@ RunService.RenderStepped:Connect(function(dt)
 		running = nowRunning
 		runningSince = os.clock()
 		if running then
-			playSound("Cock", 1.6, 0.6)
+			playSound("SpeedWhoosh", 1.1, 1)
 		end
 	end
 	local character = player.Character
@@ -314,35 +314,37 @@ event.OnClientEvent:Connect(function(kind, data)
 	data = data or {}
 	if kind == "Gain" then
 		local _, info = tierInfo()
-		streak = (os.clock() - runningSince < 1.6) and 1 or (streak + 1)
-		local big = streak % 10 == 0
+		streak = (os.clock() - runningSince < 0.3) and 1 or (streak + 1)
+		local big = streak % 16 == 0 -- every 4 seconds of running
 		floatNumber(data.amount, big and YELLOW or tierColor(info, os.clock()), big)
-		playSound("HitTick", 1 + math.min(streak, 25) * 0.02, 0.7)
+		playSound("SpeedPop", 0.9 + math.min(streak, 40) * 0.012, 0.8) -- pitch climbs the longer you run
 		setCounter(data.total, true)
 		local before = data.total - data.amount
 		for _, m in ipairs(MILESTONES) do
 			if before < m and data.total >= m then
 				banner("⚡ " .. SpeedData.Commas(m) .. " SPEED!", "You're getting faster!", CYAN)
 				confetti(45)
-				playSound("Catch", 1.1, 1)
+				playSound("SpeedDing", 1, 1)
 			end
 		end
 		if big then
 			pop(counter, counterScale, 1.4)
+			confetti(14)
+			playSound("SpeedDing", 1.5, 0.5)
 		end
 	elseif kind == "Upgraded" then
 		local info = SpeedData.Treadmills[data.tier]
 		if info then
 			banner("TREADMILL UPGRADED!", string.format("%s  •  ⚡ +%s / sec", string.upper(info.name), SpeedData.Commas(SpeedData.Gain(data.tier, player:GetAttribute("EquippedTrail")))), info.rainbow and YELLOW or info.color)
 			confetti(70)
-			playSound("Catch", 0.9, 1.2)
+			playSound("SpeedUpgrade", 1, 1)
 		end
 	elseif kind == "Bought" then
 		local trail = SpeedData.Trail(data.id)
 		if trail then
 			banner(string.upper(trail.name) .. "!", string.format("+%d walk speed  •  x%s Speed/sec", trail.walk, tostring(trail.gain)), SpeedData.TrailColors(trail)[1])
 			confetti(60)
-			playSound("Catch", 1.2, 1.2)
+			playSound("SpeedTrail", 1, 1)
 		end
 	elseif kind == "Notice" then
 		notice(data.text or "", Color3.fromRGB(255, 120, 120))

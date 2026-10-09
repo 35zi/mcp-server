@@ -31,7 +31,7 @@ local remote = remoteOf("RemoteFunction", "SpeedRemote")
 local event = remoteOf("RemoteEvent", "SpeedEvent")
 local treadmills = workspace:WaitForChild("Treadmills")
 
-local GAIN_EVERY = 1 -- seconds between Speed payouts while running
+local GAIN_EVERY = 0.25 -- seconds between Speed payouts while running (4 small payouts a second: lots of +N pops)
 local pending = {} -- player -> Speed earned but not paid out yet (fractions)
 local lastPay = {}
 local lastAsk = {}

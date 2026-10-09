@@ -2,9 +2,9 @@
 --
 -- Draws every plot's treadmill on this client. The server only has the invisible Workspace.Treadmills.<Plot>.Spot
 -- (BuildTreadmills); what you see is built here, in Workspace.LocalTreadmills:
---   * your own (in front of your pen): always there and solid, in the look of your tier (Robot, Storm, Ice, Portal,
---     Volcano, Candy: a new Blender-made model on every upgrade), with a small upgrade panel: level now > next, Speed per second
---     now > next and a price button (SpeedRemote "UpgradeTreadmill")
+--   * your own (in front of your pen): always there and solid, in the look of your tier (Basic, Storm, Ice, Portal,
+--     Volcano, Candy: a new Blender-made model on every upgrade), with a wooden sign: Speed per second now > next and
+--     one price button (SpeedRemote "UpgradeTreadmill"). Walking up to it snaps you onto the belt.
 --   * someone else's plot: only while its owner trains on it (their OnTreadmill attribute), and not solid for you
 -- Standing on your belt runs you in place: the belt is a conveyor only on your screen and your character keeps
 -- running forward until you press a move key or jump off. Sets the local-only attribute TrainingLocal on you
@@ -86,7 +86,7 @@ end
 
 ---------------------------------------------------------------- the six treadmill models (one per tier)
 -- Designed in Blender (models/speed/blender/treadmills.py) and exported as data: ReplicatedStorage.TreadmillDesigns
--- .Tier1..Tier6 (Robot, Storm, Ice, Portal, Volcano, Candy). Each is built once into a template here, then cloned.
+-- .Tier1..Tier6 (Basic, Storm, Ice, Portal, Volcano, Candy) + .Sign. Each is built once into a template here, then cloned.
 -- Part names the client uses: Belt (the conveyor), Slat (slides along the belt), Glow (colour-cycles on Candy),
 -- Fx* (invisible anchors that get particles + a light).
 local designs = ReplicatedStorage:WaitForChild("TreadmillDesigns")
@@ -94,11 +94,11 @@ local SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
 local FIRE = "rbxasset://textures/particles/fire_main.dds"
 local templates = {}
 
-local function template(tier)
-	if templates[tier] then
-		return templates[tier]
+local function design(name)
+	if templates[name] then
+		return templates[name]
 	end
-	local data = require(designs:FindFirstChild("Tier" .. tier) or designs:WaitForChild("Tier1"))
+	local data = require(designs:WaitForChild(name))
 	local colors, materials = {}, {}
 	for i, c in ipairs(data.colors) do
 		colors[i] = Color3.fromHex(c)
@@ -107,7 +107,7 @@ local function template(tier)
 		materials[i] = Enum.Material[m]
 	end
 	local model = Instance.new("Model")
-	model.Name = "Treadmill" .. tier
+	model.Name = name
 	for _, row in ipairs(data.parts) do
 		local p = Instance.new("Part")
 		p.Name = row[1]
@@ -126,8 +126,12 @@ local function template(tier)
 		p.Parent = model
 	end
 	model.WorldPivot = CFrame.new()
-	templates[tier] = model
+	templates[name] = model
 	return model
+end
+
+local function template(tier)
+	return design(designs:FindFirstChild("Tier" .. tier) and ("Tier" .. tier) or "Tier1")
 end
 
 local function kp(t, v)
@@ -266,29 +270,12 @@ local function burst(base, color)
 	Debris:AddItem(p, 1.5)
 end
 
----------------------------------------------------------------- the small upgrade panel next to YOUR treadmill
--- like Steal an Egg: a little dark panel on a post at the corner where you step on, almost no text:
---   UPGRADE / LEVEL 1 > LEVEL 2 / ⚡5/s > ⚡15/s / [ $10K ]   (the price button is green when you can pay)
+---------------------------------------------------------------- the wooden upgrade sign next to YOUR treadmill
+-- The sign is the Blender design "Sign" (planks, posts, nails); its invisible Board carries just two things:
+-- your Speed per second now > after the upgrade, and one price button (SpeedRemote "UpgradeTreadmill").
 local sign = nil
 local signBusy = false
 local messageUntil = 0
-
-local function signLabel(parent, props)
-	local t = Instance.new("TextLabel")
-	t.BackgroundTransparency = 1
-	t.Font = Enum.Font.GothamBlack
-	t.TextScaled = true
-	t.TextColor3 = Color3.new(1, 1, 1)
-	for k, v in pairs(props) do
-		t[k] = v
-	end
-	local s = Instance.new("UIStroke")
-	s.Thickness = 2.5
-	s.Color = DARK
-	s.Parent = t
-	t.Parent = parent
-	return t
-end
 
 local function destroySign()
 	if sign then
@@ -298,83 +285,77 @@ local function destroySign()
 	end
 end
 
+local function outlined(parent, props, thickness)
+	local t = Instance.new(props.ClassName or "TextLabel")
+	props.ClassName = nil
+	t.BackgroundTransparency = 1
+	t.Font = Enum.Font.GothamBlack
+	t.TextScaled = true
+	t.TextColor3 = Color3.new(1, 1, 1)
+	for k, v in pairs(props) do
+		t[k] = v
+	end
+	local s = Instance.new("UIStroke")
+	s.Thickness = thickness or 4
+	s.Color = DARK
+	s.Parent = t
+	t.Parent = parent
+	return t
+end
+
 local function buildSign(spotCF, signSide, plotName)
 	destroySign()
-	local model = Instance.new("Model")
-	model.Name = "UpgradeSign"
 	-- beside the step-on end of the belt, facing the people walking up, turned a little towards the treadmill
-	local pos = Vector3.new(signSide * 5.9, 0, 6.0)
+	local pos = Vector3.new(signSide * 6.6, 0, 6.2)
 	local dir = Vector3.new(-signSide * math.sin(math.rad(20)), 0, math.cos(math.rad(20)))
-	local cf = spotCF * CFrame.lookAt(pos, pos + dir)
-	local panelCF = CFrame.new(0, 4.1, 0) * CFrame.Angles(math.rad(12), 0, 0) -- leaning back a little
-	local function piece(name, size, offset, color, props)
-		local p = Instance.new("Part")
-		p.Name = name
-		p.Anchored = true
-		p.Size = size
-		p.CFrame = cf * offset
-		p.Color = hex(color)
-		p.Material = Enum.Material.SmoothPlastic
-		p.TopSurface = Enum.SurfaceType.Smooth
-		p.BottomSurface = Enum.SurfaceType.Smooth
-		p.CanQuery = false
-		p.CanTouch = false
-		for k, v in pairs(props or {}) do
-			p[k] = v
-		end
-		p.Parent = model
-		return p
+	local model = design("Sign"):Clone()
+	model.Name = "UpgradeSign"
+	for _, p in ipairs(model:GetChildren()) do
+		p.CanCollide = p:GetAttribute("Collide") == true
 	end
-	piece("Post", Vector3.new(0.45, 3.3, 0.45), CFrame.new(0, 1.65, 0.25), "#2b2f38")
-	local board = piece("Board", Vector3.new(4.4, 2.8, 0.25), panelCF, "#1c2431", { CanQuery = true }) -- clicks land here
-	local border = piece("Border", Vector3.new(4.65, 3.05, 0.2), panelCF * CFrame.new(0, 0, 0.06), "#8a93a3", { Material = Enum.Material.Neon, CanCollide = false })
+	model:PivotTo(spotCF * CFrame.lookAt(pos, pos + dir))
 	model.Parent = localFolder
+	local board = model:FindFirstChild("Board")
+	board.CanQuery = true -- clicks land here
 
 	-- the face lives in PlayerGui (so the button can be clicked), drawn on the board's front
 	local gui = Instance.new("SurfaceGui")
 	gui.Name = "TreadmillSign"
 	gui.Adornee = board
 	gui.Face = Enum.NormalId.Front
-	gui.CanvasSize = Vector2.new(440, 280)
+	gui.CanvasSize = Vector2.new(550, 310)
 	gui.LightInfluence = 0
-	gui.MaxDistance = 80
+	gui.MaxDistance = 90
 	gui.ResetOnSpawn = false
 	gui.Parent = player:WaitForChild("PlayerGui")
-	signLabel(gui, { Name = "Title", Position = UDim2.fromScale(0.05, 0.04), Size = UDim2.fromScale(0.9, 0.2), Text = "UPGRADE" })
-	local levelText = signLabel(gui, { Name = "Level", Position = UDim2.fromScale(0.05, 0.26), Size = UDim2.fromScale(0.9, 0.16), Text = "" })
-	local speedText = signLabel(gui, { Name = "Speed", Position = UDim2.fromScale(0.05, 0.43), Size = UDim2.fromScale(0.9, 0.15), Text = "", TextColor3 = YELLOW })
-	local button = Instance.new("TextButton")
-	button.Name = "Upgrade"
-	button.Position = UDim2.fromScale(0.14, 0.63)
-	button.Size = UDim2.fromScale(0.72, 0.31)
-	button.BackgroundColor3 = GREEN
-	button.AutoButtonColor = true
-	button.Font = Enum.Font.GothamBlack
-	button.TextScaled = true
-	button.TextColor3 = Color3.new(1, 1, 1)
-	button.Text = ""
+	local speedText = outlined(gui, { Name = "Speed", Position = UDim2.fromScale(0.05, 0.07), Size = UDim2.fromScale(0.9, 0.36), Text = "", TextColor3 = YELLOW })
+	local button = outlined(gui, {
+		ClassName = "TextButton",
+		Name = "Upgrade",
+		Position = UDim2.fromScale(0.1, 0.5),
+		Size = UDim2.fromScale(0.8, 0.42),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = GREEN,
+		AutoButtonColor = true,
+		Text = "",
+	}, 3)
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0.25, 0)
 	corner.Parent = button
 	local edge = Instance.new("UIStroke")
-	edge.Thickness = 3
+	edge.Thickness = 4
 	edge.Color = DARK
 	edge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	edge.Parent = button
-	local textEdge = Instance.new("UIStroke")
-	textEdge.Thickness = 2.5
-	textEdge.Color = DARK
-	textEdge.Parent = button
 	local pad = Instance.new("UIPadding")
-	pad.PaddingTop = UDim.new(0.16, 0)
-	pad.PaddingBottom = UDim.new(0.16, 0)
+	pad.PaddingTop = UDim.new(0.17, 0)
+	pad.PaddingBottom = UDim.new(0.17, 0)
 	pad.Parent = button
-	button.Parent = gui
 
-	sign = { model = model, gui = gui, board = board, border = border, level = levelText, speed = speedText, button = button, plot = plotName }
+	sign = { model = model, gui = gui, speed = speedText, button = button, plot = plotName }
 
 	local function say(text)
-		messageUntil = os.clock() + 2.2
+		messageUntil = os.clock() + 2
 		speedText.Text = text
 		speedText.TextColor3 = RED
 	end
@@ -403,23 +384,15 @@ local function refreshSign()
 	local nextInfo = SpeedData.Treadmills[tier + 1]
 	local trail = player:GetAttribute("EquippedTrail")
 	local now = SpeedData.Short(SpeedData.Gain(tier, trail))
-	local showSpeed = os.clock() >= messageUntil
-	if showSpeed then
+	if os.clock() >= messageUntil then
 		sign.speed.TextColor3 = YELLOW
+		sign.speed.Text = nextInfo and string.format("⚡%s/s  >  ⚡%s/s", now, SpeedData.Short(SpeedData.Gain(tier + 1, trail))) or ("⚡" .. now .. "/s")
 	end
 	if nextInfo then
-		sign.level.Text = string.format("LEVEL %d  >  LEVEL %d", tier, tier + 1)
-		if showSpeed then
-			sign.speed.Text = string.format("⚡%s/s  >  ⚡%s/s", now, SpeedData.Short(SpeedData.Gain(tier + 1, trail)))
-		end
-		sign.button.Text = "$" .. SpeedData.Short(nextInfo.price)
+		sign.button.Text = "UPGRADE $" .. SpeedData.Short(nextInfo.price)
 		sign.button.BackgroundColor3 = cash() >= nextInfo.price and GREEN or GREY
 		sign.button.AutoButtonColor = true
 	else
-		sign.level.Text = string.format("LEVEL %d  •  MAX", tier)
-		if showSpeed then
-			sign.speed.Text = "⚡" .. now .. "/s"
-		end
 		sign.button.Text = "MAX"
 		sign.button.BackgroundColor3 = GOLD
 		sign.button.AutoButtonColor = false
@@ -534,8 +507,6 @@ RunService.Heartbeat:Connect(function(dt)
 			buildSign(spot.CFrame, spot:GetAttribute("SignSide") or 1, myPlot)
 			lastSign = 0
 		end
-		local info = SpeedData.Treadmills[myTier()]
-		sign.border.Color = info.rainbow and rainbow(now) or info.color
 		if now - lastSign > 0.2 then
 			lastSign = now
 			refreshSign()
@@ -546,6 +517,9 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 ---------------------------------------------------------------- running on your own belt
+-- Walking up to your treadmill (onto it or up to its back end, not the front piece or the sign) puts you in the middle
+-- of the belt, facing forward and running. It happens once per visit: step out of that zone to arm it again.
+local snapArmed = true
 RunService:BindToRenderStep("TreadmillRun", Enum.RenderPriority.Input.Value + 1, function()
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -554,6 +528,19 @@ RunService:BindToRenderStep("TreadmillRun", Enum.RenderPriority.Input.Value + 1,
 	local s = type(myPlot) == "string" and states[myPlot]
 	local tm = s and s.mine and s.built and treadmills:FindFirstChild(myPlot)
 	local spot = tm and tm:FindFirstChild("Spot")
+	if spot and root and humanoid and humanoid.Health > 0 and not training and not player:GetAttribute("Carrying") then
+		local p = spot.CFrame:PointToObjectSpace(root.Position)
+		local near = math.abs(p.X) < 4.6 and p.Z > -7 and p.Z < 10.8 and p.Y > -2 and p.Y < 8 -- not the sign beside it
+		if near and snapArmed then
+			snapArmed = false
+			local up = SpeedData.Belt.center.Y + SpeedData.Belt.size.Y / 2 + humanoid.HipHeight + root.Size.Y / 2 + 0.1
+			local target = spot.CFrame * CFrame.new(0, up, SpeedData.Belt.center.Z)
+			character:PivotTo(target * root.CFrame:ToObjectSpace(character:GetPivot()))
+			root.AssemblyLinearVelocity = Vector3.zero
+		elseif not near then
+			snapArmed = true
+		end
+	end
 	local on = spot ~= nil and root ~= nil and humanoid ~= nil and humanoid.Health > 0 and not player:GetAttribute("Carrying") and SpeedData.OnBelt(spot.CFrame, root.Position, 0.3)
 	if on then
 		local forward = spot.CFrame.LookVector

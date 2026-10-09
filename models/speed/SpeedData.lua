@@ -5,7 +5,7 @@
 --   Walk speed grows with Speed, but slowly (log scale, capped), so big numbers feel good without breaking the game.
 --   Trails     bought once in the trail shop (the blue stall + neon circle); the equipped one adds a little walk speed
 --              and multiplies the Speed you gain per second.
---   Treadmills everyone starts on Robot; upgrades are per player, raise the Speed per second and swap the model.
+--   Treadmills everyone starts on Basic; upgrades are per player, raise the Speed per second and swap the model.
 local SpeedData = {}
 
 SpeedData.BaseWalk = 16
@@ -27,12 +27,12 @@ SpeedData.Trails = {
 }
 
 SpeedData.Treadmills = { -- each tier is its own treadmill model (TreadmillDesigns, made in Blender)
-	{ name = "Robot", price = 0, rate = 5, color = Color3.fromRGB(95, 207, 79) },
-	{ name = "Storm", price = 10000, rate = 15, color = Color3.fromRGB(89, 199, 255) },
-	{ name = "Ice", price = 50000, rate = 40, color = Color3.fromRGB(160, 249, 255) },
-	{ name = "Portal", price = 250000, rate = 100, color = Color3.fromRGB(143, 75, 255) },
-	{ name = "Volcano", price = 1000000, rate = 250, color = Color3.fromRGB(255, 138, 31) },
-	{ name = "Candy", price = 5000000, rate = 600, rainbow = true, color = Color3.fromRGB(255, 90, 165) },
+	{ name = "Basic", price = 0, rate = 10, color = Color3.fromRGB(79, 195, 255) },
+	{ name = "Storm", price = 10000, rate = 30, color = Color3.fromRGB(89, 199, 255) },
+	{ name = "Ice", price = 50000, rate = 80, color = Color3.fromRGB(160, 249, 255) },
+	{ name = "Portal", price = 250000, rate = 200, color = Color3.fromRGB(143, 75, 255) },
+	{ name = "Volcano", price = 1000000, rate = 500, color = Color3.fromRGB(255, 138, 31) },
+	{ name = "Candy", price = 5000000, rate = 1200, rainbow = true, color = Color3.fromRGB(255, 90, 165) },
 }
 
 SpeedData.RainbowColors = {

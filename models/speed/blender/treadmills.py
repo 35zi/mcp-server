@@ -179,52 +179,68 @@ def base(P):
     box("PlinthBand", P["accent"], (0, 0.36, -7.08), (7.6, 0.12, 0.06), col=False)
 
 
-################################################################ 1: Robo - a cute green robot head
+################################################################ 1: Basic - a plain gym treadmill (console, handlebars, motor hood)
 def tier1():
-    begin(1, "Robo")
-    G, Gs, Gh, GN = "5fcf4f", "46a83c", "8ee57e", "5bff63"
-    grey, greyS, dark = "d5dbe4", "a8b2c0", "2b3038"
-    base(dict(deck="c9d1dc", shade="9aa5b5", dark="3a404c", belt="23262d", roller="5b6270", slats=["3d4250", "4b5263"],
-              rail="e3e8ef", railTop="ffffff", trim=GN, bolt="8a93a3", accent=G))
-    box("Neck", greyS, (0, 1.3, -9.3), (1.8, 1.0, 1.4))
-    box("NeckRing", GN, (0, 1.6, -9.3), (1.9, 0.12, 1.5), rbx="Neon")
-    box("Head", G, (0, 3.65, -9.3), (5.2, 3.6, 3.2))
-    box("HeadShade", Gs, (0, 2.0, -9.3), (5.3, 0.3, 3.3))
-    box("HeadTop", Gh, (0, 5.5, -9.3), (5.0, 0.12, 3.0), col=False)
-    box("HeadEdge", Gh, (0, 5.4, -7.72), (5.2, 0.14, 0.1), col=False)
+    begin(1, "Basic")
+    G, Gs, Gd, K = "c9d1dc", "9aa5b5", "5b6270", "23262d"
+    base(dict(deck="8e98a8", shade="6f7a8b", dark="3a404c", belt=K, roller="5b6270", slats=["3d4250", "4b5263"],
+              rail=G, railTop="e3e8ef", trim="4fc3ff", bolt="8a93a3", accent="4fc3ff"))
+    # motor hood on the plinth, with vent slits and a stripe
+    box("Hood", Gs, (0, 1.3, -8.4), (6.6, 1.1, 2.2))
+    box("HoodTop", G, (0, 1.88, -8.4), (6.4, 0.08, 2.0), col=False)
+    box("HoodStripe", "4fc3ff", (0, 1.3, -7.29), (6.6, 0.14, 0.04), rbx="Neon", col=False)
+    for i in range(6):
+        box("Vent", Gd, (-1.75 + i * 0.7, 1.05, -7.29), (0.4, 0.12, 0.05), col=False)
+    # two uprights, leaning back towards the runner
     for s in (-1, 1):
-        box("HeadSide", Gs, (s * 2.62, 3.65, -9.3), (0.06, 3.2, 2.8), col=False)
-        box("HeadCorner", Gh, (s * 2.55, 5.4, -9.3), (0.14, 0.14, 3.2), col=False)
-    # the face looks at the runner and the camera behind them (+z)
-    box("ScreenFrame", dark, (0, 3.75, -7.68), (4.4, 2.6, 0.12))
-    box("Screen", "16202b", (0, 3.75, -7.6), (4.0, 2.2, 0.06), col=False)
+        box("Upright", Gd, (s * 2.95, 3.3, -8.3), (0.5, 3.6, 0.5), rot=(-14, 0, 0))
+        box("UprightCap", G, (s * 2.95, 1.6, -8.75), (0.7, 0.3, 0.7))
+        # handlebars along the sides, with black foam grips
+        box("Handlebar", G, (s * 2.95, 4.25, -6.0), (0.3, 0.3, 3.4))
+        box("Grip", K, (s * 2.95, 4.25, -5.2), (0.38, 0.38, 1.4), col=False)
+        box("BarEnd", "ff5a5a", (s * 2.95, 4.25, -4.25), (0.36, 0.36, 0.16), col=False)
+    # console tilted towards the runner: dark screen with a glowing graph, buttons, a cup holder and a water bottle
+    tilt = (-28, 0, 0)
+    cpos = (0, 5.05, -7.75)
+    box("Console", Gd, cpos, (6.2, 1.5, 0.9), rot=tilt)
+    box("ConsoleTop", G, along(cpos, tilt, 0.78), (6.2, 0.08, 0.9), rot=tilt, col=False)
+    face = (0, 5.0, -7.3)
+    box("Screen", "0b1622", face, (3.0, 0.95, 0.06), rot=tilt, col=False)
+    for i, h in enumerate((0.25, 0.4, 0.55, 0.35, 0.65, 0.5, 0.75)):
+        box("Graph", "4fc3ff", (-1.1 + i * 0.36, 4.82 + h / 2 * 0.88, -7.21 + h / 2 * 0.47), (0.2, h, 0.04), rot=tilt, rbx="Neon", col=False)
+    for i, c in enumerate(("5bff63", "ffd93b", "ff5a5a")):
+        box("Button", c, (2.0 + (i % 2) * 0.45, 5.15 - (i // 2) * 0.4, -7.27 + (i // 2) * 0.2), (0.3, 0.3, 0.06), rot=tilt, rbx="Neon", col=False)
+    box("Button", "ffffff", (-2.25, 4.95, -7.3), (0.6, 0.6, 0.06), rot=tilt, col=False)
+    box("CupHolder", K, (2.5, 5.75, -7.6), (0.7, 0.3, 0.7))
+    box("Bottle", "6fd0ff", (2.5, 6.25, -7.6), (0.42, 0.8, 0.42), rbx="Glass", transp=0.25, col=False)
+    box("BottleCap", "2f6fe0", (2.5, 6.73, -7.6), (0.3, 0.16, 0.3), col=False)
+    box("Towel", "ff8fb1", (-2.6, 5.62, -7.4), (0.9, 0.12, 0.7), rot=(-28, 10, 0), col=False)
+    fx("FxGlow", "4fc3ff", (0, 5.0, -7.2), (0.4, 0.4, 0.4))
+
+
+################################################################ the wooden upgrade sign (stands by your treadmill)
+# Origin = the ground under the sign; the sign faces -z. "Board" is an invisible front plate: TreadmillClient draws the
+# price + Speed text and the button on its front face.
+def sign():
+    begin(0, "Sign")
+    W1, W2, W3, Wd = "c8935a", "b98450", "d6a46a", "6b4426"
     for s in (-1, 1):
-        box("Eye", GN, (s * 1.0, 4.15, -7.55), (0.8, 0.9, 0.06), rbx="Neon", col=False)
-        box("EyeShine", "ffffff", (s * 1.0 - 0.2, 4.4, -7.52), (0.22, 0.22, 0.03), rbx="Neon", col=False)
-        box("Cheek", "ff8fb1", (s * 1.55, 3.3, -7.55), (0.45, 0.25, 0.05), col=False)
-    for x, y in ((-0.9, 3.2), (-0.45, 3.03), (0, 2.98), (0.45, 3.03), (0.9, 3.2)):
-        box("Mouth", GN, (x, y, -7.55), (0.46, 0.18, 0.06), rbx="Neon", col=False)
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            box("FaceBolt", greyS, (sx * 2.25, 3.75 + sy * 1.45, -7.66), (0.2, 0.2, 0.08), col=False)
-    for s in (-1, 1):
-        box("Ear", grey, (s * 2.85, 3.7, -9.3), (0.5, 1.5, 1.5))
-        box("EarShade", greyS, (s * 2.86, 3.05, -9.3), (0.52, 0.2, 1.52), col=False)
-        box("EarLight", GN, (s * 3.12, 3.7, -9.3), (0.06, 0.7, 0.7), rbx="Neon", col=False)
-        box("Shoulder", grey, (s * 2.9, 2.2, -8.9), (0.8, 0.8, 0.8))
-        box("Arm", greyS, (s * 3.15, 1.8, -8.05), (0.5, 0.5, 1.6), rot=(25, 0, 0))
-        box("Hand", G, (s * 3.3, 1.45, -7.25), (0.9, 0.7, 0.8))
-        box("HandShade", Gs, (s * 3.3, 1.12, -7.25), (0.92, 0.1, 0.82), col=False)
-        for f in (-0.25, 0.25):
-            box("Finger", Gh, (s * 3.3 + f, 1.45, -6.8), (0.18, 0.4, 0.18), col=False)
-    box("AntennaBase", grey, (0, 5.7, -9.3), (0.9, 0.3, 0.9))
-    box("Antenna", greyS, (0, 6.45, -9.3), (0.18, 1.3, 0.18), col=False)
-    box("AntennaBall", GN, (0, 7.25, -9.3), (0.6, 0.6, 0.6), rbx="Neon", col=False)
-    for i in range(3):
-        box("Vent", Gs, (0, 3.0 + i * 0.6, -10.92), (3.0, 0.2, 0.06), col=False)
-    for s in (-1, 1):
-        box("TopLight", GN, (s * 1.8, 5.6, -8.4), (0.4, 0.15, 0.4), rbx="Neon", col=False)
-    fx("FxGlow", GN, (0, 7.25, -9.3), (0.4, 0.4, 0.4))
+        box("Post", Wd, (s * 2.3, 2.6, 0.4), (0.5, 5.2, 0.5))  # behind the planks
+        box("PostCap", "5a381f", (s * 2.3, 5.28, 0.4), (0.62, 0.18, 0.62), col=False)
+        box("PostShade", "5a381f", (s * 2.3, 0.25, 0.4), (0.56, 0.5, 0.56), col=False)
+    box("Back", "7a4f2b", (0, 3.7, 0.16), (5.4, 3.2, 0.16), col=False)
+    for i, (y, c, r) in enumerate(((4.75, W1, 0.8), (3.7, W2, -0.6), (2.65, W3, 0.5))):
+        box("Plank", c, (0, y, -0.02), (5.7, 0.98, 0.26), rot=(0, 0, r), rbx="Wood")
+        for g in (-0.22, 0.2):
+            box("Grain", Wd, (random.uniform(-1.0, 1.0), y + g, -0.16), (random.uniform(1.4, 2.6), 0.04, 0.02), rot=(0, 0, r), col=False)
+        for s in (-1, 1):
+            box("Nail", "3b3b40", (s * 2.3, y, -0.17), (0.13, 0.13, 0.04), col=False)
+    box("TopTrim", Wd, (0, 5.3, 0.1), (6.0, 0.22, 0.6), rbx="Wood", col=False)
+    for x in (-2.7, -2.0, 2.0, 2.6):
+        box("Grass", "4cbb5a", (x, 0.18, random.uniform(-0.25, 0.25)), (0.22, 0.36, 0.22), rot=(0, random.uniform(0, 90), random.uniform(-15, 15)), col=False)
+    board = box("Board", "ffffff", (0, 3.7, -0.17), (5.5, 3.1, 0.02), transp=1.0, col=False)
+    board.display_type = "WIRE"
+    board.hide_render = True
 
 
 ################################################################ 2: Storm - a thunder cloud on two posts
@@ -405,7 +421,7 @@ def tier6():
 
 
 def build_all():
-    for f in (tier1, tier2, tier3, tier4, tier5, tier6):
+    for f in (sign, tier1, tier2, tier3, tier4, tier5, tier6):
         f()
     return {c.name: len(c.objects) - 1 for c in bpy.data.collections["Treadmills"].children}
 
@@ -443,7 +459,7 @@ def export_tier(coll):
             row += [_num(rq.x), _num(rq.y), _num(rq.z), _num(rq.w)]
         rows.append("{" + ",".join(row) + "},")
     lines = [
-        "-- Tier%d %s treadmill: generated in Blender by models/speed/blender/treadmills.py (do not edit by hand)." % (t, coll["label"]),
+        "-- Tier%d %s design: generated in Blender by models/speed/blender/treadmills.py (do not edit by hand)." % (t, coll["label"]),
         "-- part = { name, colour, material, transparency, collide, x, y, z, sizeX, sizeY, sizeZ [, qx, qy, qz, qw] }",
         "-- (Roblox studs, relative to the treadmill Spot; the runner faces -z)",
         "return {",
@@ -461,7 +477,7 @@ def export_all(folder):
     out = {}
     for coll in bpy.data.collections["Treadmills"].children:
         text, n = export_tier(coll)
-        path = os.path.join(folder, "Tier%d.lua" % coll["tier"])
+        path = os.path.join(folder, ("Tier%d.lua" % coll["tier"]) if coll["tier"] > 0 else (coll["label"] + ".lua"))
         with open(path, "w", newline="\n", encoding="utf-8") as f:
             f.write(text)
         out[coll.name] = n
