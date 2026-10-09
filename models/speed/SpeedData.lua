@@ -2,18 +2,23 @@
 --
 -- Numbers for the Speed side of the game, shared by SpeedService (server) and SpeedClient / TrailShopClient.
 --   Speed      a leaderstat that only goes up: treadmills add Speed every second while you run on them.
---   Walk speed grows with Speed, but slowly (log scale, capped), so big numbers feel good without breaking the game.
+--   Walk speed grows with Speed: x2 at 10K, x1.5 again at 20K, +16 per doubling after that, capped at MaxWalk.
 --   Trails     bought once in the trail shop (the blue stall + neon circle); the equipped one adds a little walk speed
 --              and multiplies the Speed you gain per second.
 --   Treadmills everyone starts on Basic; upgrades are per player, raise the Speed per second and swap the model.
 local SpeedData = {}
 
 SpeedData.BaseWalk = 16
-SpeedData.MaxSpeedBonus = 20 -- walk speed you can ever get from the Speed stat (on top of BaseWalk + trail)
+SpeedData.MaxWalk = 135 -- top walk speed: the whole map (spawn to the far end wall, ~1330 studs) in ~10 seconds
 
--- walk speed added by your Speed stat: 200 Speed ~ +4, 2K ~ +8, 20K ~ +12, 200K ~ +16, 2M ~ +20 (cap)
+-- walk speed added by your Speed stat: 0 -> 10K Speed doubles your speed (16 -> 32), then every doubling of Speed
+-- adds another 16: 20K = 48 (x1.5), 40K = 64, 80K = 80, 160K = 96, 320K = 112, 640K = 128, ~870K = 135 (the cap)
 function SpeedData.WalkBonus(speed)
-	return math.min(SpeedData.MaxSpeedBonus, 4 * math.log10(1 + math.max(0, speed or 0) / 20))
+	speed = math.max(0, speed or 0)
+	if speed <= 10000 then
+		return 16 * speed / 10000
+	end
+	return 16 + 16 * math.log(speed / 10000, 2)
 end
 
 -- colors = the trail's color, front to back; rainbow = cycles through every colour
@@ -83,7 +88,7 @@ end
 
 function SpeedData.Walk(speed, trailId)
 	local trail = trailId and SpeedData.Trail(trailId)
-	return SpeedData.BaseWalk + SpeedData.WalkBonus(speed) + (trail and trail.walk or 0)
+	return math.min(SpeedData.MaxWalk, SpeedData.BaseWalk + SpeedData.WalkBonus(speed) + (trail and trail.walk or 0))
 end
 
 -- 62189 -> "62,189"

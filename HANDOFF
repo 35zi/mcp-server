@@ -342,3 +342,10 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Files: models/speed/blender/treadmills.py (tier1 Basic + sign()), designs/Tier1.lua + new designs/Sign.lua, TreadmillClient (design(name) templates, wooden sign, snap-on), SpeedData (rates, Basic), SpeedService (GAIN_EVERY), SpeedClient (sounds, bigger streak effects), new InstallSpeedSounds.lua. Studio: TreadmillDesigns.Tier1 + .Sign, GameAudio.Speed* sounds, scripts patched.
 - Branch: claude/lighting
 - Status: done — Play-tested: walking up from 22 studs behind snapped to belt centre (0,4,0) and paid ~10/s in 4 pops/s; wooden sign shows ⚡10/s > ⚡30/s + UPGRADE $10K; upgrade -> Storm model, sign ⚡30/s > ⚡80/s / $50K; sounds load (IsLoaded, lengths 0.4–2.5 s); console clean. Place not saved by me — save in Studio.
+
+## Claude — 2026-10-09 23:10 UTC
+- Task: owner's requests — (1) run much faster on the treadmill: walk speed x2.5 while training (max 100; the belt scrolls at walk speed so you stay centred); (2) smooth sound instead of the pop: SpeedChime (Pro Sound Effects "Magic Glows Soft Clusters Of Chiming Hits 2", 9116394876) once a second while running, gently rising pitch; SpeedPop removed; (3) full-screen effects on every payout: ⚡ bolts appear all over the screen and fly into the Speed counter (14 golden ones every 4 s) + screen-edge glow in the treadmill colour; (4) walk speed from Speed: 16 -> 32 at 10K (x2), 48 at 20K (x1.5), +16 per doubling after that, capped at 135 (~870K Speed) = spawn to the far end wall in ~10 s.
+- Files: models/speed/SpeedClient.client.lua, SpeedData.lua (MaxWalk, WalkBonus, Walk cap), InstallSpeedSounds.lua. Studio: SpeedClient/SpeedData updated, GameAudio.SpeedChime added, SpeedPop removed.
+- Note: WalkSpeed is set on the client (server still reads 16) — server-side movement checks, if added later, must use SpeedData.Walk.
+- Branch: claude/lighting
+- Status: done — Play-tested: snap-on, walk 40 on the belt and held at belt centre, bolts + glow on screen, client walk 135 at 900K Speed (10K/20K values checked in SpeedData: 32 / 48); chime loads; console clean. Place not saved by me — save in Studio.

@@ -4,7 +4,8 @@
 --   * walk speed = SpeedData.Walk(your Speed, your trail), applied to your own Humanoid (left alone while something
 --     else has frozen it at 0, e.g. the weapon shop view)
 --   * TreadmillClient draws the treadmills and runs you on yours; it sets the local attribute TrainingLocal
---   * juice: floating "+15 ⚡" numbers, a rising tick, screen speed lines, a small FOV kick, sparkles, a Speed counter
+--   * juice: floating "+15 ⚡" numbers, ⚡ bolts flying from all over the screen into the counter, glowing screen
+--     edges, a soft chime, screen speed lines, a small FOV kick, sparkles, faster running on the belt, a Speed counter
 --     above the cash, streak, milestone and upgrade banners with confetti
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -19,6 +20,7 @@ local audio = ReplicatedStorage:FindFirstChild("GameAudio")
 local DARK = Color3.fromRGB(8, 20, 28)
 local CYAN = Color3.fromRGB(90, 230, 255)
 local YELLOW = Color3.fromRGB(255, 225, 70)
+local TREADMILL_RUN = 2.5 -- walk speed x this while you run on your treadmill
 local MILESTONES = { 100, 500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000, 50000000, 100000000 }
 
 local function make(class, props, parent)
@@ -207,6 +209,72 @@ local function floatNumber(amount, color, big)
 	end)
 end
 
+---------------------------------------------------------------- full-screen Speed rush (every payout while you run)
+-- ⚡ bolts appear all over the screen and fly into the Speed counter, and the screen edges glow in your
+-- treadmill's colour.
+local edges = {}
+for _, e in ipairs({
+	{ UDim2.fromScale(0, 0), UDim2.fromScale(0.22, 1), 0 }, -- left: bright at the edge, fading inwards
+	{ UDim2.fromScale(0.78, 0), UDim2.fromScale(0.22, 1), 180 },
+	{ UDim2.fromScale(0, 0), UDim2.fromScale(1, 0.25), 90 },
+	{ UDim2.fromScale(0, 0.75), UDim2.fromScale(1, 0.25), -90 },
+}) do
+	local f = make("Frame", { Position = e[1], Size = e[2], BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0, BorderSizePixel = 0, ZIndex = 1, Visible = false }, ui)
+	local g = make("UIGradient", { Rotation = e[3], Transparency = NumberSequence.new(1) }, f)
+	table.insert(edges, { frame = f, gradient = g })
+end
+local glow = 0 -- 0..1, fades out by itself
+local function setGlow(color)
+	glow = 1
+	for _, e in ipairs(edges) do
+		e.frame.BackgroundColor3 = color
+	end
+end
+RunService.RenderStepped:Connect(function(dt)
+	glow = math.max(0, glow - dt * 2.2)
+	for _, e in ipairs(edges) do
+		e.frame.Visible = glow > 0.01
+		if glow > 0.01 then
+			local a = 1 - 0.55 * glow -- strongest at the very edge
+			e.gradient.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, a), NumberSequenceKeypoint.new(1, 1) })
+		end
+	end
+end)
+
+local function rush(count, color)
+	local vp = workspace.CurrentCamera.ViewportSize
+	local target = counter.AbsolutePosition + counter.AbsoluteSize * Vector2.new(0.15, 0.5)
+	for _ = 1, count do
+		local start = Vector2.new(math.random() * vp.X, math.random() * vp.Y * 0.85)
+		local size = math.random(34, 64)
+		local bolt = make("TextLabel", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(start.X, start.Y),
+			Size = UDim2.fromOffset(size, size),
+			BackgroundTransparency = 1,
+			Text = "⚡",
+			TextScaled = true,
+			TextColor3 = color,
+			Rotation = math.random(-25, 25),
+			ZIndex = 25,
+		}, ui)
+		local scale = make("UIScale", { Scale = 0.2 }, bolt)
+		TweenService:Create(scale, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+		task.delay(0.18 + math.random() * 0.15, function()
+			local fly = TweenService:Create(bolt, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				Position = UDim2.fromOffset(target.X, target.Y),
+				Rotation = 0,
+				TextTransparency = 0.3,
+			})
+			TweenService:Create(scale, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0.35 }):Play()
+			fly:Play()
+			fly.Completed:Connect(function()
+				bolt:Destroy()
+			end)
+		end)
+	end
+end
+
 ---------------------------------------------------------------- screen speed lines while running
 local lines = make("Frame", { Name = "SpeedLines", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false }, ui)
 local lineData = {}
@@ -300,6 +368,9 @@ task.spawn(function()
 		local value = speedValue()
 		if humanoid and humanoid.WalkSpeed ~= 0 then
 			local want = SpeedData.Walk(value and value.Value or 0, player:GetAttribute("EquippedTrail"))
+			if player:GetAttribute("TrainingLocal") then
+				want = math.max(want, math.min(want * TREADMILL_RUN, 100)) -- sprint on the belt (it scrolls just as fast)
+			end
 			if math.abs(humanoid.WalkSpeed - want) > 0.05 then
 				humanoid.WalkSpeed = want
 			end
@@ -317,7 +388,12 @@ event.OnClientEvent:Connect(function(kind, data)
 		streak = (os.clock() - runningSince < 0.3) and 1 or (streak + 1)
 		local big = streak % 16 == 0 -- every 4 seconds of running
 		floatNumber(data.amount, big and YELLOW or tierColor(info, os.clock()), big)
-		playSound("SpeedPop", 0.9 + math.min(streak, 40) * 0.012, 0.8) -- pitch climbs the longer you run
+		if streak % 4 == 1 then -- a soft chime once a second, gently rising while you keep running
+			playSound("SpeedChime", 0.9 + (math.min(streak, 60) / 4 % 6) * 0.04, 0.7)
+		end
+		local color = tierColor(info, os.clock())
+		rush(big and 14 or 5, big and YELLOW or color)
+		setGlow(big and YELLOW or color)
 		setCounter(data.total, true)
 		local before = data.total - data.amount
 		for _, m in ipairs(MILESTONES) do

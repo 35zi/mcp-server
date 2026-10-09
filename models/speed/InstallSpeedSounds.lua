@@ -4,7 +4,7 @@
 -- library, so they play in every experience). SpeedClient plays them by name.
 local audio = game:GetService("ReplicatedStorage"):WaitForChild("GameAudio")
 local SOUNDS = {
-	SpeedPop = { 9113263649, 0.5 }, -- Balloon Pop 3: every Speed payout (pitch climbs while you run)
+	SpeedChime = { 9116394876, 0.35 }, -- Magic Glow soft chimes: once a second while you run (smooth, not poppy)
 	SpeedWhoosh = { 9125807267, 0.6 }, -- Rising Whoosh: you start running / snap onto the belt
 	SpeedDing = { 9126073001, 0.7 }, -- Synth Sparkle Ding: Speed milestones + every 4 s of running
 	SpeedUpgrade = { 9116395089, 0.8 }, -- Magic Glow chimes: treadmill upgraded
