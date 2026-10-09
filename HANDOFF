@@ -356,3 +356,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Integration note for Codex: anything reading leaderstats.Speed must read leaderstats.Stamina now.
 - Branch: claude/lighting
 - Status: done — Play-tested: leaderboard shows Stamina; sniper-stunned 17.85 kg Penguin prompt "needs 800 ⚡ Stamina"; with 0 Stamina pickup refused with the message; with 2,000 Stamina a 31.08 kg Penguin (needs 1,600) was picked up; console clean. Place not saved by me — save in Studio.
+
+## Claude — 2026-10-10 00:10 UTC
+- Task: owner's sketch (Stamina vs speed: steep at the start, flattening later) — walk speed is now a saturating curve of Stamina: bonus = 119 x S/(S+6000): 100 Stamina = +2, 300 = +6, 1K = +17 (x2), 3K = +40, 10K = +74, 30K = +99, 100K = +112 (never above 135). Plus a beginner income boost: Stamina per second x3 at 0 Stamina, fading to x1 at 5,000 (SpeedData.Gain now takes the player's Stamina; SpeedService + the HUD "+N/s" pass it).
+- Files: models/speed/SpeedData.lua, SpeedService.server.lua, SpeedClient.client.lua.
+- Branch: claude/lighting
+- Status: code done + pushed, NOT yet installed in Studio / playtested: Studio had no place open when I tried (instance b1c36652… "Place is not open"). Install = patch those three scripts (find/replace as in the commit) once the place is open.

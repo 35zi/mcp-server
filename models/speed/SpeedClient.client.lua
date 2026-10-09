@@ -357,7 +357,7 @@ RunService.RenderStepped:Connect(function(dt)
 	updateLines(dt, running)
 	local tier, info = tierInfo()
 	setSparkles(running, tierColor(info, os.clock()))
-	rateLabel.Text = running and ("+" .. SpeedData.Commas(SpeedData.Gain(tier, player:GetAttribute("EquippedTrail"))) .. "/s") or ""
+	rateLabel.Text = running and ("+" .. SpeedData.Commas(SpeedData.Gain(tier, player:GetAttribute("EquippedTrail"), (speedValue() or { Value = 0 }).Value)) .. "/s") or ""
 end)
 
 ---------------------------------------------------------------- walk speed

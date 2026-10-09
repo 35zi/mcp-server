@@ -3,23 +3,22 @@
 -- Numbers for the Speed side of the game, shared by SpeedService (server) and SpeedClient / TrailShopClient.
 --   Stamina    a leaderstat (shown as "Stamina"; the code still calls it Speed) that only goes up: treadmills add it every
 --              second while you run on them. Heavy animals need enough of it to be picked up (StaminaToCarry).
---   Walk speed grows with Speed: x2 at 10K, x1.5 again at 20K, +16 per doubling after that, capped at MaxWalk.
+--   Walk speed follows a saturating curve of Stamina (fast at the start, slower and slower later); see WalkBonus.
 --   Trails     bought once in the trail shop (the blue stall + neon circle); the equipped one adds a little walk speed
 --              and multiplies the Speed you gain per second.
 --   Treadmills everyone starts on Basic; upgrades are per player, raise the Speed per second and swap the model.
 local SpeedData = {}
 
 SpeedData.BaseWalk = 16
-SpeedData.MaxWalk = 135 -- top walk speed: the whole map (spawn to the far end wall, ~1330 studs) in ~10 seconds
+SpeedData.MaxWalk = 135 -- the ceiling the curve approaches (spawn to the far end wall in ~10 s)
+SpeedData.CurveHalf = 6000 -- Stamina at which you have half of the possible bonus
 
--- walk speed added by your Speed stat: 0 -> 10K Speed doubles your speed (16 -> 32), then every doubling of Speed
--- adds another 16: 20K = 48 (x1.5), 40K = 64, 80K = 80, 160K = 96, 320K = 112, 640K = 128, ~870K = 135 (the cap)
+-- walk speed added by your Stamina: a saturating curve (fast gains at the start, slower and slower later):
+-- 100 = +2, 300 = +6, 1K = +17 (x2 speed), 3K = +40, 10K = +74, 30K = +99, 100K = +112, never above MaxWalk
 function SpeedData.WalkBonus(speed)
 	speed = math.max(0, speed or 0)
-	if speed <= 10000 then
-		return 16 * speed / 10000
-	end
-	return 16 + 16 * math.log(speed / 10000, 2)
+	local room = SpeedData.MaxWalk - SpeedData.BaseWalk
+	return room * speed / (speed + SpeedData.CurveHalf)
 end
 
 -- colors = the trail's color, front to back; rainbow = cycles through every colour
@@ -81,10 +80,12 @@ function SpeedData.ColorSequence(colors)
 end
 
 -- Speed per second on a treadmill of this tier with this trail equipped
-function SpeedData.Gain(tier, trailId)
+function SpeedData.Gain(tier, trailId, stamina)
 	local t = SpeedData.Treadmills[tier] or SpeedData.Treadmills[1]
 	local trail = trailId and SpeedData.Trail(trailId)
-	return math.floor(t.rate * (trail and trail.gain or 1) + 0.5)
+	-- beginner boost: x3 income at 0 Stamina, fading out to x1 at 5,000, so the first minutes feel fast
+	local boost = 1 + 2 * math.max(0, 1 - (stamina or 5000) / 5000)
+	return math.floor(t.rate * (trail and trail.gain or 1) * boost + 0.5)
 end
 
 function SpeedData.Walk(speed, trailId)

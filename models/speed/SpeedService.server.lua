@@ -226,7 +226,7 @@ RunService.Heartbeat:Connect(function(dt)
 		player:SetAttribute("OnTreadmill", tm and tm.Name or nil)
 		if tm then
 			local tier = player:GetAttribute("TreadmillTier") or 1
-			pending[player] = (pending[player] or 0) + SpeedData.Gain(tier, player:GetAttribute("EquippedTrail")) * step
+			pending[player] = (pending[player] or 0) + SpeedData.Gain(tier, player:GetAttribute("EquippedTrail"), (speedValue(player) or {Value = 0}).Value) * step
 			if now - (lastPay[player] or 0) >= GAIN_EVERY then
 				lastPay[player] = now
 				local amount = math.floor(pending[player])
