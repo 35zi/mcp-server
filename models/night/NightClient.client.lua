@@ -1,7 +1,7 @@
 -- NightClient (LocalScript in StarterPlayer.StarterPlayerScripts)
 --
--- What you see of the NIGHT HUNT (NightService): a banner while the wall is up, the big countdown 10 ... 1, "GO!"
--- when it drops, and the server message for rare animals ("Yeti has spawned!").
+-- What you see of the NIGHT HUNT (NightService): the countdown 10 ... 1 and "GO!" painted ON THE WALL (not on your screen;
+-- everyone hears the ticks), and the server message for rare animals ("Yeti has spawned!") for everyone.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -60,34 +60,49 @@ local function playSound(name, pitch, volume)
 	end)
 end
 
----------------------------------------------------------------- banner + countdown
-local top = Instance.new("Frame")
-top.Name = "Top"
-top.AnchorPoint = Vector2.new(0.5, 0)
-top.Position = UDim2.fromScale(0.5, 0.1)
-top.Size = UDim2.fromScale(0.62, 0.075)
-top.BackgroundTransparency = 1
-top.Visible = false
-top.Parent = gui
-local topText = label({ Size = UDim2.fromScale(1, 1), Text = "🌙 NIGHT HUNT — the wall opens in…" }, top, 4)
+---------------------------------------------------------------- the countdown lives ON THE WALL
+-- Nothing is drawn over your screen: the title and the big numbers are painted on both faces of Workspace.NightWall,
+-- so only the people standing at the wall see them. Everyone else just hears the ticks / the GO sound.
+local wallGuis = {} -- { title, numbers = { labels } } per face
+local function buildWallGuis(wall)
+	for _, g in ipairs(wallGuis) do
+		g.gui:Destroy()
+	end
+	wallGuis = {}
+	for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+		local sg = Instance.new("SurfaceGui")
+		sg.Name = "NightWallText"
+		sg.Face = face
+		sg.Adornee = wall
+		sg.CanvasSize = Vector2.new(2400, 340)
+		sg.LightInfluence = 0
+		sg.Brightness = 1.5
+		sg.MaxDistance = 400
+		sg.ResetOnSpawn = false
+		sg.Parent = player:WaitForChild("PlayerGui")
+		local title = label({ Position = UDim2.fromScale(0, 0.02), Size = UDim2.fromScale(1, 0.24), Text = "🌙 NIGHT HUNT — the wall opens in…", Visible = false }, sg, 6)
+		local numbers = {}
+		for _, x in ipairs({ 0.14, 0.5, 0.86 }) do -- repeated along the wall so it reads from anywhere
+			local n = label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(x, 0.27), Size = UDim2.fromScale(0.22, 0.72), Text = "", Visible = false }, sg, 8)
+			table.insert(numbers, n)
+		end
+		table.insert(wallGuis, { gui = sg, title = title, numbers = numbers })
+	end
+end
 
-local big = label({ Name = "Count", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.42), Size = UDim2.fromScale(0.34, 0.34), Text = "", Visible = false }, gui, 7)
-local BIG = 2.6 -- the digit is a 100 px font drawn at 2.6x (TextScaled ignores UIScale, so it is off here)
-big.TextScaled = false
-big.TextSize = 100
-local bigScale = Instance.new("UIScale")
-bigScale.Scale = BIG
-bigScale.Parent = big
-
-local function pop(text, color, tickPitch)
-	big.Text = text
-	big.TextColor3 = color
-	big.Visible = true
-	bigScale.Scale = BIG * 1.6
-	big.TextTransparency = 0
-	TweenService:Create(bigScale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = BIG }):Play()
-	if tickPitch then
-		playSound("HitTick", tickPitch, 1)
+local function setWall(titleText, text, color)
+	local wall = workspace:FindFirstChild("NightWall")
+	if wall and (not wallGuis[1] or wallGuis[1].gui.Adornee ~= wall or not wallGuis[1].gui.Parent) then
+		buildWallGuis(wall)
+	end
+	for _, g in ipairs(wallGuis) do
+		g.title.Visible = titleText ~= nil
+		g.title.Text = titleText or ""
+		for _, n in ipairs(g.numbers) do
+			n.Visible = text ~= nil
+			n.Text = text or ""
+			n.TextColor3 = color or Color3.new(1, 1, 1)
+		end
 	end
 end
 
@@ -95,8 +110,7 @@ local running = 0 -- serial number of the current countdown
 local function countdown(goAt, endAt)
 	running += 1
 	local serial = running
-	top.Visible = true
-	topText.Text = "🌙 NIGHT HUNT — the wall opens in…"
+	setWall("🌙 NIGHT HUNT — the wall opens in…", "", Color3.new(1, 1, 1))
 	local lastShown = nil
 	while running == serial do
 		local left = goAt - workspace:GetServerTimeNow()
@@ -106,8 +120,8 @@ local function countdown(goAt, endAt)
 		local n = math.ceil(left)
 		if n ~= lastShown then
 			lastShown = n
-			local hot = n <= 3
-			pop(tostring(n), hot and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(255, 235, 120), 0.8 + (10 - n) * 0.07)
+			setWall("🌙 NIGHT HUNT — the wall opens in…", tostring(n), n <= 3 and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(255, 235, 120))
+			playSound("HitTick", 0.8 + (10 - n) * 0.07, 1) -- everyone hears the ticks, wherever they are
 		end
 		RunService.RenderStepped:Wait()
 	end
@@ -115,17 +129,14 @@ end
 
 local function go()
 	running += 1 -- stops the countdown loop
-	top.Visible = false
-	pop("GO!", Color3.fromRGB(90, 255, 110), nil)
+	setWall("🌙 NIGHT HUNT", "GO!", Color3.fromRGB(90, 255, 110))
 	playSound("SpeedWhoosh", 1.2, 1)
 	playSound("SpeedDing", 1.4, 0.8)
-	task.delay(1.3, function()
-		TweenService:Create(big, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
-		task.delay(0.45, function()
-			if big.Text == "GO!" then
-				big.Visible = false
-			end
-		end)
+	local serial = running
+	task.delay(2, function()
+		if running == serial then -- not if a new night started meanwhile
+			setWall(nil, nil)
+		end
 	end)
 end
 
@@ -134,7 +145,7 @@ local toastSerial = 0
 local toast = Instance.new("Frame")
 toast.Name = "Rare"
 toast.AnchorPoint = Vector2.new(0.5, 0)
-toast.Position = UDim2.fromScale(0.5, 0.62) -- below the big countdown
+toast.Position = UDim2.fromScale(0.5, 0.14) -- top of the screen (for everyone, wherever they are)
 toast.Size = UDim2.fromScale(0.7, 0.13)
 toast.BackgroundTransparency = 1
 toast.Visible = false
@@ -178,7 +189,7 @@ event.OnClientEvent:Connect(function(kind, data)
 	elseif kind == "Go" then
 		go()
 	elseif kind == "End" then
-		top.Visible = false
+		setWall(nil, nil)
 	elseif kind == "Rare" then
 		rare(data)
 	end

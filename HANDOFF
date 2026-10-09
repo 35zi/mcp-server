@@ -383,3 +383,10 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Files: models/night/NightService.server.lua (wall block). Studio: patched.
 - Branch: claude/lighting
 - Status: done — checked in Play (Transparency 0, solid, nothing visible through it). Place not saved by me — save in Studio.
+
+## Claude — 2026-10-10 03:10 UTC
+- Task: owner's request — the night countdown and its text are no longer on everyone's screen: "NIGHT HUNT — the wall opens in…" and the big 10..1 / GO! are painted on both faces of Workspace.NightWall (SurfaceGuis built locally, number repeated 3x along the wall), so only people at the wall see them; everyone else just hears the ticks / GO sound. The rare-animal server message stays on everyone's screen (moved to the top).
+- Files: models/night/NightClient.client.lua. Studio: patched.
+- Note: GameUI.Frames.Shop must stay Visible=false (it reverted to true once after a playtest because the place was not saved — Ctrl+S in Studio keeps it).
+- Branch: claude/lighting
+- Status: done — Play-tested: no night ScreenGui text except the rare toast; wall shows title + countdown. Place not saved by me — save in Studio.
