@@ -377,3 +377,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Also: StarterGui.GameUI.Frames.Shop (the stray invisible window that ate clicks) is now Visible=false in the place (my earlier change was lost when a playtest ended — Edit-mode changes made while Play is on do not stick).
 - Branch: claude/lighting
 - Status: done — Play-tested full cycle with timings (wall solid 0-10 s, player pushed back behind the line, wall gone after 10 s, day back at ~15 s), countdown + GO + rare message screenshots; console clean. Place not saved by me — save in Studio.
+
+## Claude — 2026-10-10 02:40 UTC
+- Task: owner's request — the night wall is now a plain, fully opaque gray (SmoothPlastic, Transparency 0, RGB 175,178,185) instead of the see-through red force field; the "NIGHT HUNT" text on it is gone. Looks bluish-gray during the night because of the night lighting tint.
+- Files: models/night/NightService.server.lua (wall block). Studio: patched.
+- Branch: claude/lighting
+- Status: done — checked in Play (Transparency 0, solid, nothing visible through it). Place not saved by me — save in Studio.

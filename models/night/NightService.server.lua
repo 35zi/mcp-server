@@ -43,33 +43,13 @@ wall.CanCollide = false
 wall.CanTouch = false
 wall.CanQuery = false
 wall.CastShadow = false
-wall.Material = Enum.Material.ForceField
-wall.Color = Color3.fromRGB(255, 60, 70)
-wall.Transparency = 0.15
+wall.Material = Enum.Material.SmoothPlastic
+wall.Color = Color3.fromRGB(175, 178, 185) -- plain solid gray (light enough to still read as gray in the night tint)
+wall.Transparency = 0
 wall.Size = Vector3.new(312, WALL_HEIGHT, 3)
 local hiddenCF = CFrame.new(redLine.Position.X, floorY - WALL_HEIGHT / 2 - 1, redLine.Position.Z - 1.6)
 local shownCF = CFrame.new(redLine.Position.X, floorY + WALL_HEIGHT / 2, redLine.Position.Z - 1.6)
 wall.CFrame = hiddenCF
-for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
-	local gui = Instance.new("SurfaceGui")
-	gui.Face = face
-	gui.CanvasSize = Vector2.new(2400, 340)
-	gui.LightInfluence = 0
-	gui.Brightness = 2
-	gui.Parent = wall
-	local label = Instance.new("TextLabel")
-	label.BackgroundTransparency = 1
-	label.Size = UDim2.fromScale(1, 1)
-	label.Font = Enum.Font.GothamBlack
-	label.TextScaled = true
-	label.Text = "🌙  NIGHT HUNT  🌙  GET READY  🌙  NIGHT HUNT  🌙"
-	label.TextColor3 = Color3.new(1, 1, 1)
-	local stroke = Instance.new("UIStroke")
-	stroke.Thickness = 8
-	stroke.Color = Color3.fromRGB(120, 10, 20)
-	stroke.Parent = label
-	label.Parent = gui
-end
 wall.Parent = workspace
 
 local function moveWall(cf, seconds)
