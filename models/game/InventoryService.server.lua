@@ -12,7 +12,7 @@
 -- plot sign's Income label (Plot.Hitbox.PlayerUI.Frame.Bottom.Income).
 -- Your plot comes from Codex's plot system: player attribute PlotName -> Workspace.<PlotName> (its Hitbox is
 -- the area). Nothing is saved yet (no DataStore); selling comes later.
--- Also builds ReplicatedStorage.AnimalPreviews (one Medium model per species) for the menus' pictures.
+-- Also builds ReplicatedStorage.AnimalPreviews (one average-weight model per species) for the menus' pictures.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -25,7 +25,6 @@ local CashAdapter = require(ServerScriptService:WaitForChild("CashAdapter"))
 
 local EquipBestService = require(script.Parent:WaitForChild("EquipBestService"))
 local MAX_PER_PLOT = 24
-local HOLD_SIZE = 2.6 -- studs: held animals are shrunk to fit in a hand
 local rng = Random.new()
 
 local remote = ReplicatedStorage:FindFirstChild("AnimalInventoryRemote")
@@ -47,7 +46,7 @@ do
 	previews.Name = "AnimalPreviews"
 	previews:ClearAllChildren()
 	for species in pairs(AnimalData.Species) do
-		local model = AnimalManager.BuildModel(species, "Medium", "None")
+		local model = AnimalManager.BuildModel(species, nil, "None")
 		if model then
 			for _, d in ipairs(model:GetDescendants()) do
 				if d:IsA("BasePart") then
@@ -62,7 +61,7 @@ end
 
 ---------------------------------------------------------------- helpers
 local function nameOf(item)
-	return AnimalData.DisplayName(item:GetAttribute("Species"), item:GetAttribute("Size"), item:GetAttribute("Mutation"))
+	return AnimalData.DisplayName(item:GetAttribute("Species"), item:GetAttribute("WeightKg") or item:GetAttribute("Size"), item:GetAttribute("Mutation"))
 end
 
 local function plotOf(player)
@@ -112,14 +111,9 @@ end
 ---------------------------------------------------------------- holding (a Tool)
 local function makeHoldTool(player, item)
 	local id = item:GetAttribute("Id")
-	local model = AnimalManager.BuildModel(item:GetAttribute("Species"), item:GetAttribute("Size"), item:GetAttribute("Mutation"))
+	local model = AnimalManager.BuildModel(item:GetAttribute("Species"), item:GetAttribute("WeightKg") or item:GetAttribute("Size"), item:GetAttribute("Mutation"))
 	if not model then
 		return nil
-	end
-	local _, size = model:GetBoundingBox()
-	local biggest = math.max(size.X, size.Y, size.Z)
-	if biggest > HOLD_SIZE then
-		model:ScaleTo(model:GetScale() * HOLD_SIZE / biggest)
 	end
 	local parts, offsets, box = AnimalManager.RootOffsets(model)
 
@@ -185,7 +179,7 @@ local function placeOnPlot(player, item)
 	if #folder:GetChildren() >= MAX_PER_PLOT then
 		return false, "Your plot is full"
 	end
-	local model = AnimalManager.BuildModel(item:GetAttribute("Species"), item:GetAttribute("Size"), item:GetAttribute("Mutation"))
+	local model = AnimalManager.BuildModel(item:GetAttribute("Species"), item:GetAttribute("WeightKg") or item:GetAttribute("Size"), item:GetAttribute("Mutation"))
 	if not model then
 		return false, "This animal has no model"
 	end
@@ -245,7 +239,8 @@ local function placeOnPlot(player, item)
 	model:SetAttribute("EntryId", item:GetAttribute("Id"))
 	-- where it may wander (PlotAnimalsClient moves it around on every client; the server keeps it still)
 	model:SetAttribute("Species", item:GetAttribute("Species"))
-	model:SetAttribute("Scale", AnimalData.SizeScale[item:GetAttribute("Size")] or 1)
+	model:SetAttribute("WeightKg", AnimalData.Weight(item:GetAttribute("Species"), item:GetAttribute("WeightKg") or item:GetAttribute("Size")))
+	model:SetAttribute("Scale", AnimalData.WeightTraits(item:GetAttribute("Species"), item:GetAttribute("WeightKg") or item:GetAttribute("Size")).scale)
 	model:SetAttribute("AreaCFrame", CFrame.new(hitbox.Position.X, spot.Y, hitbox.Position.Z) * hitbox.CFrame.Rotation)
 	model:SetAttribute("AreaHalf", Vector2.new(hx, hz))
 	if spawnPoint then
@@ -471,4 +466,3 @@ Players.PlayerRemoving:Connect(function(player)
 		folder:Destroy()
 	end
 end)
-

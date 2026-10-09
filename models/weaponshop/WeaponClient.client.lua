@@ -5,7 +5,7 @@
 --     faded when the target is out of range); the mouse cursor is hidden while a weapon is out
 --   * hold RIGHT-CLICK (or L2): third person glides to an over-the-shoulder view; first person lines up the
 --     iron sights (or the scope overlay for scoped weapons); a viewmodel of the gun with blocky hands is drawn;
---     Accuracy turns into a gentle sight sway; release to glide back out
+--     Accuracy turns into a gentle sight sway (the AR has stable ADS); release to glide back out
 --   * LEFT-CLICK (or R2, or tap): fire. The shot is shown instantly (kick, muzzle flash + smoke, tracer, impact,
 --     gunshot) and the server is told; the server decides damage and confirms hits (hit tick + hit marker)
 --   * per-weapon animation from WeaponConfig: hammer drop/re-cock with a click, cylinder turning, pump, bolt,
@@ -272,6 +272,8 @@ local camOwned = false
 local saved = nil -- camera settings to restore when aiming ends
 local yaw, pitch = 0, 0
 local gamepadLook = Vector2.zero
+local aimInput = nil
+local windowFocused = true
 local hiddenState = false
 
 -- the shop view or an animal menu (Index / Inventory) is open: the weapon steps aside and the cursor shows
@@ -410,12 +412,15 @@ local function releaseCamera(restore)
 	if humanoid then
 		humanoid.AutoRotate = saved.autoRotate
 	end
-	UserInputService.MouseBehavior = saved.mouseBehavior
+	-- Roblox may have already locked the mouse for right-click before InputBegan.
+	-- Do not restore that transient lock; the default camera reapplies first-person/shift-lock itself.
+	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	setCharacterHidden(false)
 	if restore then
 		if head then
 			-- hand the camera back exactly where third person expects it, so there is no snap
-			local eye = head.Position + Vector3.new(0, 0.15, 0)
+			local rootPart=character:FindFirstChild("HumanoidRootPart")
+			local eye = rootPart and rootPart.Position+saved.eyeOffset or head.Position+Vector3.new(0,0.15,0)
 			camera.CFrame = CFrame.new(eye) * CFrame.fromOrientation(pitch, yaw, 0) * CFrame.new(0, 0, saved.dist)
 		end
 		camera.FieldOfView = saved.fov
@@ -439,7 +444,7 @@ local function takeCamera()
 		fov = camera.FieldOfView,
 		dist = math.clamp((camera.CFrame.Position - head.Position).Magnitude, 0.5, 60),
 		autoRotate = humanoid.AutoRotate,
-		mouseBehavior = UserInputService.MouseBehavior,
+		eyeOffset = head.Position - character.HumanoidRootPart.Position + Vector3.new(0,0.15,0),
 		firstPerson = player.CameraMode == Enum.CameraMode.LockFirstPerson or (camera.CFrame.Position-camera.Focus.Position).Magnitude < 1,
 	}
 	local look = camera.CFrame.LookVector
@@ -457,7 +462,7 @@ local function thirdPersonAim(centered)
 	local mouse = centered and camera.ViewportSize/2 or UserInputService:GetMouseLocation()
 	local ray = camera:ViewportPointToRay(mouse.X, mouse.Y) -- GetMouseLocation is in viewport space (includes the top bar)
 	local params = rayParams()
-	local result = workspace:Raycast(ray.Origin, ray.Direction * 1000, params)
+	local result = workspace:Raycast(ray.Origin, ray.Direction * math.max(1500, current.stats.Range + 60), params)
 	local aimPoint = result and result.Position or ray.Origin + ray.Direction * 1000
 	local muzzle = current.muzzleAttachment and current.muzzleAttachment.WorldPosition or ray.Origin
 	local toAim = aimPoint - muzzle
@@ -479,7 +484,7 @@ end
 
 local function fire()
 	local c = current
-	if not c or shopOpen() then
+	if not c or not windowFocused or shopOpen() then
 		return
 	end
 	local character = player.Character
@@ -513,7 +518,7 @@ local function fire()
 		landing, hitInstance, normal, _, muzzle = thirdPersonAim()
 		muzzleCF = CFrame.lookAt(muzzle, landing)
 	end
-	combat:FireServer(c.id, landing, aimed, hitInstance)
+	combat:FireServer(c.id, landing, aimed and saved.firstPerson, hitInstance)
 
 	-- instant feedback
 	playSound("Fire", nil, c.cfg.Pitch * rng:NextNumber(0.97, 1.03), c.cfg.Volume)
@@ -584,9 +589,17 @@ local function onRender(dt)
 	local head = character and character:FindFirstChild("Head")
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	if not humanoid or humanoid.Health <= 0 or not head or not root then
+		aiming=false alpha=0 releaseCamera(true)
 		return
 	end
 	local now = os.clock()
+	-- Recover even when release occurred outside Studio/game focus or UI swallowed it.
+	if aiming and aimInput=="Mouse" and not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then aiming=false aimInput=nil end
+	if not windowFocused then
+		c.triggerHeld=false aiming=false alpha=0 releaseCamera(true)
+		UserInputService.MouseIconEnabled=true
+		return
+	end
 
 	if shopOpen() then
 		-- the shop owns the camera: step aside without touching it
@@ -594,7 +607,9 @@ local function onRender(dt)
 			local weaponShop=player.PlayerGui:FindFirstChild("WeaponShopUI")
 			releaseCamera(not (weaponShop and weaponShop.Enabled))
 		end
-		aiming, alpha = false, 0
+		aiming, alpha, aimInput = false, 0, nil
+		c.triggerHeld=false
+		UserInputService.MouseBehavior=Enum.MouseBehavior.Default
 		setViewmodelVisible(c.vm, false)
 		hud.Enabled = false
 		UserInputService.MouseIconEnabled = true
@@ -635,8 +650,8 @@ local function onRender(dt)
 		end
 		root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, yaw, 0)
 
-		local eye = head.Position + Vector3.new(0, 0.15, 0)
-		local amp = math.rad(c.stats.AdsSway) * e
+		local eye = root.Position + saved.eyeOffset
+		local amp = c.cfg.StableADS and 0 or math.rad(c.stats.AdsSway) * e
 		local sway = CFrame.Angles(math.sin(now * 1.1) * amp * 0.6, math.sin(now * 0.7 + 1) * amp, 0)
 		local recoil = CFrame.Angles(math.rad(2.5 * kickStrength * kick) * e, 0, 0)
 		local rotation = CFrame.fromOrientation(pitch, yaw, 0) * sway * recoil
@@ -658,7 +673,9 @@ local function onRender(dt)
 		setCharacterHidden(saved.firstPerson and e > 0.55)
 
 		local pose = HIP_POSE:Lerp(c.adsPose, e)
-		local kickCF = CFrame.new(0, 0.04 * kick, 0.25 * kick * kickStrength) * CFrame.Angles(math.rad(7 * kick * kickStrength), 0, 0)
+		-- Camera recoil moves the sight and shot ray together. Extra gun recoil fades out in ADS.
+		local visualKick=kick*(1-e)
+		local kickCF = CFrame.new(0, 0.04 * visualKick, 0.25 * visualKick * kickStrength) * CFrame.Angles(math.rad(7 * visualKick * kickStrength), 0, 0)
 		local gunCF = camCF * pose * kickCF
 		c.vmGunCF = gunCF
 		local showVm = saved.firstPerson and e > 0.35 and not scoped
@@ -679,8 +696,7 @@ local function onRender(dt)
 		reticle.Visible = not saved.firstPerson
 		if reticle.Visible then
 			local landing,hit,_,outOfRange=thirdPersonAim(true)
-			local screen,onScreen=camera:WorldToViewportPoint(landing)
-			reticle.Visible=onScreen reticle.Position=UDim2.fromOffset(screen.X,screen.Y)
+			reticle.Visible=true reticle.Position=UDim2.fromScale(0.5,0.5)
 			dot.BackgroundColor3=isAnimal(hit) and RED or WHITE ringStroke.Color=dot.BackgroundColor3
 			ringStroke.Transparency=(outOfRange or cooling) and .7 or .25
 			dot.BackgroundTransparency=outOfRange and .6 or 0
@@ -705,9 +721,9 @@ local function onRender(dt)
 		setViewmodelVisible(c.vm, false)
 		cycleTransforms(c, now)
 		local landing, hit, _, outOfRange = thirdPersonAim()
-		local screen, onScreen = camera:WorldToViewportPoint(landing)
-		reticle.Visible = onScreen
-		reticle.Position = UDim2.fromOffset(screen.X, screen.Y)
+		local mouse=UserInputService:GetMouseLocation()
+		reticle.Visible = true
+		reticle.Position = UDim2.fromOffset(mouse.X, mouse.Y)
 		local color = isAnimal(hit) and RED or WHITE
 		dot.BackgroundColor3 = color
 		ringStroke.Color = color
@@ -737,7 +753,8 @@ local function unequip()
 		c.tool.Grip = CFrame.new()
 	end
 	current = nil
-	aiming, alpha = false, 0
+	aiming, alpha, aimInput = false, 0, nil
+	UserInputService.MouseBehavior=Enum.MouseBehavior.Default
 	hud.Enabled = false
 	setCharacterHidden(false)
 	UserInputService.MouseIconEnabled = true
@@ -792,22 +809,31 @@ end
 
 ---------------------------------------------------------------- input
 UserInputService.InputBegan:Connect(function(input, processed)
+	-- A fresh unprocessed game input also resumes after Studio focus changes.
+	if not processed then windowFocused=true end
 	if not current or processed then
 		return
 	end
 	if input.UserInputType == Enum.UserInputType.MouseButton2 or input.KeyCode == Enum.KeyCode.ButtonL2 then
-		if not shopOpen() and takeCamera() then
-			aiming = true
-		elseif camOwned then
-			aiming = true
+		if not shopOpen() and (camOwned or takeCamera()) then
+			aiming=true
+			aimInput=input.UserInputType==Enum.UserInputType.MouseButton2 and "Mouse" or "Gamepad"
 		end
 	end
 end)
 UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton2 or input.KeyCode == Enum.KeyCode.ButtonL2 then
-		aiming = false
+		aiming = false aimInput=nil
 	end
 end)
+UserInputService.WindowFocusReleased:Connect(function()
+	windowFocused=false aiming=false alpha=0 aimInput=nil gamepadLook=Vector2.zero
+	if current then current.triggerHeld=false end
+	releaseCamera(true)
+	UserInputService.MouseBehavior=Enum.MouseBehavior.Default
+	UserInputService.MouseIconEnabled=true
+end)
+UserInputService.WindowFocused:Connect(function() windowFocused=true end)
 UserInputService.InputChanged:Connect(function(input)
 	if input.KeyCode == Enum.KeyCode.Thumbstick2 then
 		gamepadLook = Vector2.new(input.Position.X, input.Position.Y)

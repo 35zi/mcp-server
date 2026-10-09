@@ -13,7 +13,7 @@ function Best.Equip(player,context)
   local state=item:GetAttribute("State")
   snapshots[item]=state
   local species=item:GetAttribute("Species")
-  local income=AnimalData.Income(species,item:GetAttribute("Size"),item:GetAttribute("Mutation"))
+  local income=AnimalData.Income(species,item:GetAttribute("WeightKg") or item:GetAttribute("Size"),item:GetAttribute("Mutation"))
   if AnimalData.Species[species] and type(item:GetAttribute("Id"))=="number" then
    table.insert(candidates,{item=item,income=income,id=item:GetAttribute("Id")})
   end
@@ -61,4 +61,3 @@ function Best.Equip(player,context)
  return true,string.format("Equipped %d pets — $%s per second!",count,AnimalData.Commas(income))
 end
 return Best
-
