@@ -9,9 +9,13 @@
 --     :InvokeServer("Equip", id)      -> ok, message, state     (Equip of the equipped weapon unequips it)
 --   state = { cash = number, owned = { [id] = true }, equipped = id | nil }
 --
--- Ownership is kept as player attributes Owns_<Id> (session only: NO DataStore yet) and the equipped weapon as the
--- attribute EquippedWeapon. Tools come from ServerStorage.WeaponTools.<Id>; a copy also goes into StarterGear so the
--- weapon comes back after respawning.
+-- ONE GUN AT A TIME: you only ever carry one gun (player attribute ActiveWeapon). Buying a gun swaps it in and takes
+-- the old one out of your Backpack / hand / StarterGear; guns you bought stay owned, so EQUIP in the shop swaps back
+-- to one of them for free. Other Tools (pets) are never touched: only Tools with a WeaponId attribute are guns.
+--
+-- Ownership is kept as player attributes Owns_<Id> (session only: NO DataStore yet) and the weapon in your hand as
+-- the attribute EquippedWeapon. Tools come from ServerStorage.WeaponTools.<Id>; a copy of the active gun also goes
+-- into StarterGear so it comes back after respawning.
 --
 -- TEMPORARY CURRENCY: there is no economy in the game yet, so Cash is a placeholder leaderstats value that lives
 -- behind ServerScriptService.CashAdapter (shared with AnimalManager). Replace that module with the real economy.
@@ -91,6 +95,33 @@ local function grantTool(player, id)
 	return true
 end
 
+-- every gun except keepId leaves your hand, Backpack and StarterGear (pets and other Tools stay)
+local function removeOtherGuns(player, keepId)
+	local removed = nil
+	for _, holder in ipairs({ player.Character, player:FindFirstChildOfClass("Backpack"), player:FindFirstChild("StarterGear") }) do
+		if holder then
+			for _, child in ipairs(holder:GetChildren()) do
+				local id = child:IsA("Tool") and child:GetAttribute("WeaponId")
+				if id and id ~= keepId then
+					if holder ~= player:FindFirstChild("StarterGear") then
+						removed = removed or id
+					end
+					child:Destroy()
+				end
+			end
+		end
+	end
+	return removed
+end
+
+-- makes id the one gun you carry; returns the id of the gun it replaced (if any)
+local function setActive(player, id)
+	local replaced = removeOtherGuns(player, id)
+	player:SetAttribute("ActiveWeapon", id)
+	grantTool(player, id)
+	return replaced
+end
+
 -- keep the EquippedWeapon attribute in step with what the character is really holding (hotbar included)
 local function watchCharacter(player, character)
 	character.ChildAdded:Connect(function(child)
@@ -110,12 +141,13 @@ local function onPlayer(player)
 	setupCash(player)
 	player.CharacterAdded:Connect(function(character)
 		watchCharacter(player, character)
-		-- StarterGear copies into the Backpack on spawn; make sure owned weapons are there regardless
+		-- StarterGear copies into the Backpack on spawn; make sure exactly your one gun is there
 		task.defer(function()
-			for _, item in ipairs(catalog) do
-				if owns(player, item.Id) then
-					grantTool(player, item.Id)
-				end
+			local active = player:GetAttribute("ActiveWeapon")
+			if type(active) == "string" and owns(player, active) then
+				setActive(player, active)
+			else
+				removeOtherGuns(player, nil)
 			end
 		end)
 	end)
@@ -158,8 +190,17 @@ local function handle(player, action, id)
 			return false, "Not enough Cash", stateOf(player)
 		end
 		player:SetAttribute("Owns_" .. id, true)
-		grantTool(player, id)
-		return true, "Bought " .. item.Name, stateOf(player)
+		local wasHolding = player:GetAttribute("EquippedWeapon") ~= nil
+		local replaced = setActive(player, id)
+		-- if you had a gun in your hand, the new one goes straight into it
+		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+		local tool = findTool(player, id)
+		if wasHolding and humanoid and humanoid.Health > 0 and tool then
+			humanoid:EquipTool(tool)
+			player:SetAttribute("EquippedWeapon", id)
+		end
+		local old = replaced and byId[replaced]
+		return true, old and ("Bought " .. item.Name .. " (replaced your " .. old.Name .. ")") or ("Bought " .. item.Name), stateOf(player)
 	elseif action == "Equip" then
 		if not owns(player, id) then
 			return false, "You don't own this", stateOf(player)
@@ -174,7 +215,8 @@ local function handle(player, action, id)
 			player:SetAttribute("EquippedWeapon", nil)
 			return true, "Unequipped", stateOf(player)
 		end
-		grantTool(player, id)
+		-- swapping to another gun you own: the one you carried leaves your inventory
+		setActive(player, id)
 		local tool = findTool(player, id)
 		if not tool then
 			return false, "Weapon missing", stateOf(player)

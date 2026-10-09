@@ -309,3 +309,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Studio: Workspace.Treadmills.<PlotN>.Spot/AvoidArea (invisible, non-colliding); TreadmillClient in StarterPlayerScripts; live InventoryService/PlotAnimalsClient patched in place (find/replace, rest untouched).
 - Branch: claude/trails-treadmill
 - Status: done — Play-tested on Plot1: belt pays 5/s and holds you in place; real click on the sign button upgraded Basic -> Bronze, then all tiers to Rainbow (new model + burst + banner, sign shows MAX); simulated another owner training on Plot2 -> ghost treadmill appears, hides 1s after; AvoidArea segment tests pass; console clean. Not tested with two real clients. Place not saved by me — save in Studio.
+
+## Claude — 2026-10-09 19:10 UTC
+- Task: owner's request — one gun at a time. You only carry one gun (player attribute ActiveWeapon): buying a gun swaps it in and removes the old one from hand / Backpack / StarterGear (if you were holding a gun, the new one goes into your hand). Bought guns stay owned (Owns_<Id>), so the shop's EQUIP swaps back for free. Only Tools with a WeaponId are touched (pets in the Backpack stay). Respawn gives back just the active gun.
+- Files: models/weaponshop/WeaponShopService.server.lua (live Studio version + removeOtherGuns / setActive; Buy, Equip and CharacterAdded use them). Client unchanged.
+- Branch: claude/one-gun (based on claude/trails-treadmill)
+- Status: done — Play-tested via the shop remote: Python -> Revolver (held, replaced) -> Automatic Rifle -> swap back to Python; a non-weapon test Tool survived every swap; respawn left only Python; console clean. Place not saved by me — save in Studio.
