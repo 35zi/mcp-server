@@ -1,6 +1,6 @@
 -- InstallShopView (run once in Studio's command bar / via MCP, edit mode). Safe to re-run.
 -- * removes the old "Press E" shop (ProximityPrompt anchor, ShopMenu ScreenGui, ShopServer Script)
--- * adds Workspace.WeaponShop.ShopView with the invisible markers WeaponShopClient uses:
+-- * adds Workspace.WeaponShop.ShopView with the invisible markers WeaponShopClient uses (re-run it whenever the stall is rebuilt):
 --     ShopZone    - cylinder over the neon ring in front of the counter (Workspace["Sell point"])
 --     ShopCamera  - where the camera flies to
 --     PreviewSpot - where the spinning preview floats (above the middle of the front counter)
@@ -10,13 +10,10 @@ local CHS = game:GetService("ChangeHistoryService")
 local rec = CHS:TryBeginRecording("Install Weapon Shop view")
 
 local shop = workspace:WaitForChild("WeaponShop")
-local structure = shop:WaitForChild("Structure")
-local counter = structure:WaitForChild("CounterFront")
+local structure = shop:FindFirstChild("Structure") -- only in the first stall design; the striped stall has none
+local counter = structure and structure:FindFirstChild("CounterFront")
 
--- The stall's frame, taken from the front counter (centre at local (0, 3.6, 5)).
-local SHOP = counter.CFrame * CFrame.new(0, -3.6, -5)
-
--- The ring in front of the counter: its centre and radius decide the trigger zone.
+-- The ring in front of the stall (Workspace["Sell point"]): its centre and radius decide the trigger zone.
 local ring = workspace:FindFirstChild("Sell point")
 local ringCentre, ringRadius
 if ring then
@@ -29,7 +26,21 @@ if ring then
 			ringRadius = math.max(ringRadius, flat.Magnitude + math.max(p.Size.X, p.Size.Z) / 2)
 		end
 	end
+end
+
+-- The stall's frame (origin = ground centre, +Z = towards the customers): from the old front counter if there is one
+-- (centre at local (0, 3.6, 5)), else from the stall's own position, facing the ring.
+local SHOP
+if counter then
+	SHOP = counter.CFrame * CFrame.new(0, -3.6, -5)
 else
+	local bbox, _ = shop:GetBoundingBox()
+	local floorY = ring and (ring:GetBoundingBox().Position.Y - 0.2) or (bbox.Position.Y - 5)
+	local origin = Vector3.new(bbox.Position.X, floorY, bbox.Position.Z)
+	local toward = ring and Vector3.new(ringCentre.X - origin.X, 0, ringCentre.Z - origin.Z) or Vector3.new(bbox.LookVector.X, 0, bbox.LookVector.Z)
+	SHOP = CFrame.lookAt(origin, origin - toward.Unit) -- local -Z points away from the customers
+end
+if not ring then
 	ringCentre = (SHOP * CFrame.new(0, 0, 10)).Position
 	ringRadius = 8
 end
@@ -41,7 +52,7 @@ for _, name in ipairs({ "ShopMenu", "ShopServer" }) do
 		old:Destroy()
 	end
 end
-local anchor = structure:FindFirstChild("ShopPromptAnchor")
+local anchor = structure and structure:FindFirstChild("ShopPromptAnchor")
 if anchor then
 	anchor:Destroy()
 end

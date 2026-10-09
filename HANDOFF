@@ -362,3 +362,11 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Files: models/speed/SpeedData.lua, SpeedService.server.lua, SpeedClient.client.lua.
 - Branch: claude/lighting
 - Status: code done + pushed, NOT yet installed in Studio / playtested: Studio had no place open when I tried (instance b1c36652… "Place is not open"). Install = patch those three scripts (find/replace as in the commit) once the place is open.
+
+## Claude — 2026-10-10 00:40 UTC
+- Task: owner's report — weapon shop and trail shop won't work. Cause (weapon shop): the stall was rebuilt (striped canopy stall: Wood + Tent Roof + gun models) and the old Structure/Canopy/Props/ShopView were gone, so WeaponShopClient waited forever on Workspace.WeaponShop.ShopView (console: "Infinite yield possible ... ShopView"). Fix: models/weaponshop/InstallShopView.lua now works without the old counter (frame from the stall position + the "Sell point" ring) and was re-run: ShopView with ShopZone / ShopCamera / PreviewSpot / ExitPoint recreated. Re-run it whenever the stall is rebuilt or moved.
+- Trail shop: opened and sold fine in my test (real click on BUY $10K -> Blue owned, cash -10K); GameUI.Frames.Shop (invisible window) was not visible this time. If it still fails for the owner it is likely that stray window or the shop script being blocked — tell me what you see.
+- Also installed the pending Stamina curve (walk speed saturating curve + beginner income boost; commit 589c49b).
+- Note for tests: ScreenGui buttons are clicked at their AbsolutePosition coordinates directly; only SurfaceGuis need y-58.
+- Branch: claude/lighting
+- Status: done — Play-tested: weapon shop opens in the ring with the new stall + preview, BUY click bought Python ($50), Backspace leaves; trail shop BUY click worked; console clean. Place not saved by me — save in Studio.
