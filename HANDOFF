@@ -315,3 +315,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Files: models/weaponshop/WeaponShopService.server.lua (live Studio version + removeOtherGuns / setActive; Buy, Equip and CharacterAdded use them). Client unchanged.
 - Branch: claude/one-gun (based on claude/trails-treadmill)
 - Status: done — Play-tested via the shop remote: Python -> Revolver (held, replaced) -> Automatic Rifle -> swap back to Python; a non-weapon test Tool survived every swap; respawn left only Python; console clean. Place not saved by me — save in Studio.
+
+## Claude — 2026-10-09 19:40 UTC
+- Task: owner's request — lighting like Steal an Egg (bright cartoon daylight). Lighting: Brightness 10 -> 2, ClockTime 14, neutral grey Ambient/OutdoorAmbient 120 (was purple/green tinted), no ColorShift, ShadowSoftness 0.5, Atmosphere Density 0.12 with no Haze/Glare, ColorCorrection Contrast 0.08 / Saturation 0.05. Sky unchanged. The previous values are stored in the Lighting attribute OldLighting.
+- Files: models/game/SetupLighting.lua (new, re-runnable). Studio: Lighting properties + Atmosphere + ColorCorrection.
+- Branch: claude/lighting (based on claude/one-gun)
+- Status: done — checked in Play at the red line (green tiles visible, soft shadows, clear sky) and in the snow world (no white blow-out). Place not saved by me — save in Studio.
