@@ -2,9 +2,9 @@
 --
 -- Draws every plot's treadmill on this client. The server only has the invisible Workspace.Treadmills.<Plot>.Spot
 -- (BuildTreadmills); what you see is built here, in Workspace.LocalTreadmills:
---   * your own plot: always there and solid, in the look of your tier (Basic, Bronze, Silver, Gold, Diamond,
---     Rainbow: a new model on every upgrade), with a sign next to it showing your tier, your Speed per second now and
---     after the next upgrade, and a green UPGRADE button with the price (SpeedRemote "UpgradeTreadmill")
+--   * your own (in front of your pen): always there and solid, in the look of your tier (Basic, Bronze, Silver, Gold,
+--     Diamond, Rainbow: a new model on every upgrade), with a small upgrade panel: level now > next, Speed per second
+--     now > next and a price button (SpeedRemote "UpgradeTreadmill")
 --   * someone else's plot: only while its owner trains on it (their OnTreadmill attribute), and not solid for you
 -- Standing on your belt runs you in place: the belt is a conveyor only on your screen and your character keeps
 -- running forward until you press a move key or jump off. Sets the local-only attribute TrainingLocal on you
@@ -22,7 +22,6 @@ local remote = ReplicatedStorage:WaitForChild("SpeedRemote")
 local treadmills = workspace:WaitForChild("Treadmills")
 
 local DARK = Color3.fromRGB(8, 20, 28)
-local CYAN = Color3.fromRGB(90, 230, 255)
 local YELLOW = Color3.fromRGB(255, 225, 70)
 local GREEN = Color3.fromRGB(60, 205, 40)
 local GREY = Color3.fromRGB(120, 130, 145)
@@ -261,7 +260,9 @@ local function burst(base, color)
 	Debris:AddItem(p, 1.5)
 end
 
----------------------------------------------------------------- the upgrade sign next to YOUR treadmill
+---------------------------------------------------------------- the small upgrade panel next to YOUR treadmill
+-- like Steal an Egg: a little dark panel on a post at the corner where you step on, almost no text:
+--   UPGRADE / LEVEL 1 > LEVEL 2 / ⚡5/s > ⚡15/s / [ $10K ]   (the price button is green when you can pay)
 local sign = nil
 local signBusy = false
 local messageUntil = 0
@@ -276,7 +277,7 @@ local function signLabel(parent, props)
 		t[k] = v
 	end
 	local s = Instance.new("UIStroke")
-	s.Thickness = 3
+	s.Thickness = 2.5
 	s.Color = DARK
 	s.Parent = t
 	t.Parent = parent
@@ -291,14 +292,15 @@ local function destroySign()
 	end
 end
 
-local function buildSign(base, plotName)
+local function buildSign(spotCF, signSide, plotName)
 	destroySign()
 	local model = Instance.new("Model")
 	model.Name = "UpgradeSign"
-	-- right of the treadmill, facing the plot's entrance, turned a little towards the middle of the plot
-	local pos = Vector3.new(7, 0, 2)
-	local dir = Vector3.new(-math.sin(math.rad(25)), 0, math.cos(math.rad(25)))
-	local cf = base * CFrame.lookAt(pos, pos + dir)
+	-- beside the step-on end of the belt, facing the people walking up, turned a little towards the treadmill
+	local pos = Vector3.new(signSide * 5.3, 0, 5)
+	local dir = Vector3.new(-signSide * math.sin(math.rad(20)), 0, math.cos(math.rad(20)))
+	local cf = spotCF * CFrame.lookAt(pos, pos + dir)
+	local panelCF = CFrame.new(0, 4.1, 0) * CFrame.Angles(math.rad(12), 0, 0) -- leaning back a little
 	local function piece(name, size, offset, color, props)
 		local p = Instance.new("Part")
 		p.Name = name
@@ -317,12 +319,9 @@ local function buildSign(base, plotName)
 		p.Parent = model
 		return p
 	end
-	for _, side in ipairs({ -1, 1 }) do
-		piece("Post", Vector3.new(0.45, 6.2, 0.45), CFrame.new(side * 2.55, 3.1, 0.15), "#6b4426")
-	end
-	local board = piece("Board", Vector3.new(5.6, 3.9, 0.35), CFrame.new(0, 4.35, 0), "#13304a", { CanQuery = true }) -- clicks land here
-	local border = piece("Border", Vector3.new(5.95, 4.25, 0.25), CFrame.new(0, 4.35, 0.1), "#8a93a3", { Material = Enum.Material.Neon, CanCollide = false })
-	piece("Roof", Vector3.new(6.3, 0.35, 1.1), CFrame.new(0, 6.45, 0.1), "#8a5a33")
+	piece("Post", Vector3.new(0.45, 3.3, 0.45), CFrame.new(0, 1.65, 0.25), "#2b2f38")
+	local board = piece("Board", Vector3.new(4.4, 2.8, 0.25), panelCF, "#1c2431", { CanQuery = true }) -- clicks land here
+	local border = piece("Border", Vector3.new(4.65, 3.05, 0.2), panelCF * CFrame.new(0, 0, 0.06), "#8a93a3", { Material = Enum.Material.Neon, CanCollide = false })
 	model.Parent = localFolder
 
 	-- the face lives in PlayerGui (so the button can be clicked), drawn on the board's front
@@ -330,19 +329,18 @@ local function buildSign(base, plotName)
 	gui.Name = "TreadmillSign"
 	gui.Adornee = board
 	gui.Face = Enum.NormalId.Front
-	gui.CanvasSize = Vector2.new(560, 390)
+	gui.CanvasSize = Vector2.new(440, 280)
 	gui.LightInfluence = 0
-	gui.MaxDistance = 90
+	gui.MaxDistance = 80
 	gui.ResetOnSpawn = false
 	gui.Parent = player:WaitForChild("PlayerGui")
-	signLabel(gui, { Name = "Title", Position = UDim2.fromScale(0.04, 0.03), Size = UDim2.fromScale(0.92, 0.16), Text = "⚡ TREADMILL", TextColor3 = CYAN })
-	local tierText = signLabel(gui, { Name = "Tier", Position = UDim2.fromScale(0.04, 0.2), Size = UDim2.fromScale(0.92, 0.12), Text = "" })
-	local rateText = signLabel(gui, { Name = "Rate", Position = UDim2.fromScale(0.04, 0.33), Size = UDim2.fromScale(0.92, 0.17), Text = "", TextColor3 = YELLOW })
-	local nextText = signLabel(gui, { Name = "Next", Position = UDim2.fromScale(0.04, 0.52), Size = UDim2.fromScale(0.92, 0.11), Text = "" })
+	signLabel(gui, { Name = "Title", Position = UDim2.fromScale(0.05, 0.04), Size = UDim2.fromScale(0.9, 0.2), Text = "UPGRADE" })
+	local levelText = signLabel(gui, { Name = "Level", Position = UDim2.fromScale(0.05, 0.26), Size = UDim2.fromScale(0.9, 0.16), Text = "" })
+	local speedText = signLabel(gui, { Name = "Speed", Position = UDim2.fromScale(0.05, 0.43), Size = UDim2.fromScale(0.9, 0.15), Text = "", TextColor3 = YELLOW })
 	local button = Instance.new("TextButton")
 	button.Name = "Upgrade"
-	button.Position = UDim2.fromScale(0.08, 0.68)
-	button.Size = UDim2.fromScale(0.84, 0.27)
+	button.Position = UDim2.fromScale(0.14, 0.63)
+	button.Size = UDim2.fromScale(0.72, 0.31)
 	button.BackgroundColor3 = GREEN
 	button.AutoButtonColor = true
 	button.Font = Enum.Font.GothamBlack
@@ -350,29 +348,29 @@ local function buildSign(base, plotName)
 	button.TextColor3 = Color3.new(1, 1, 1)
 	button.Text = ""
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0.22, 0)
+	corner.CornerRadius = UDim.new(0.25, 0)
 	corner.Parent = button
 	local edge = Instance.new("UIStroke")
-	edge.Thickness = 4
+	edge.Thickness = 3
 	edge.Color = DARK
 	edge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	edge.Parent = button
 	local textEdge = Instance.new("UIStroke")
-	textEdge.Thickness = 3
+	textEdge.Thickness = 2.5
 	textEdge.Color = DARK
 	textEdge.Parent = button
 	local pad = Instance.new("UIPadding")
-	pad.PaddingTop = UDim.new(0.14, 0)
-	pad.PaddingBottom = UDim.new(0.14, 0)
+	pad.PaddingTop = UDim.new(0.16, 0)
+	pad.PaddingBottom = UDim.new(0.16, 0)
 	pad.Parent = button
 	button.Parent = gui
 
-	sign = { model = model, gui = gui, board = board, border = border, tier = tierText, rate = rateText, next = nextText, button = button, plot = plotName }
+	sign = { model = model, gui = gui, board = board, border = border, level = levelText, speed = speedText, button = button, plot = plotName }
 
 	local function say(text)
 		messageUntil = os.clock() + 2.2
-		nextText.Text = text
-		nextText.TextColor3 = RED
+		speedText.Text = text
+		speedText.TextColor3 = RED
 	end
 	button.Activated:Connect(function()
 		if signBusy or not SpeedData.Treadmills[myTier() + 1] then
@@ -386,32 +384,37 @@ local function buildSign(base, plotName)
 		if not ok then
 			say("Try again!")
 		elseif not success then
-			say(message or "Can't upgrade right now.")
+			say(message and message:find("need") and "Not enough cash!" or (message or "Can't upgrade"))
 		end
 	end)
 end
 
-local function refreshSign(t)
+local function refreshSign()
 	if not sign then
 		return
 	end
 	local tier = myTier()
-	local info = SpeedData.Treadmills[tier]
 	local nextInfo = SpeedData.Treadmills[tier + 1]
 	local trail = player:GetAttribute("EquippedTrail")
-	sign.tier.Text = string.format("%s  •  LEVEL %d/%d", string.upper(info.name), tier, #SpeedData.Treadmills)
-	sign.tier.TextColor3 = info.rainbow and rainbow(t) or info.color
-	sign.rate.Text = "⚡ +" .. SpeedData.Commas(SpeedData.Gain(tier, trail)) .. " SPEED / SEC"
-	if os.clock() >= messageUntil then
-		sign.next.TextColor3 = Color3.new(1, 1, 1)
-		sign.next.Text = nextInfo and string.format("NEXT: %s  ⚡ +%s / SEC", string.upper(nextInfo.name), SpeedData.Commas(SpeedData.Gain(tier + 1, trail))) or "YOU HAVE THE BEST TREADMILL!"
+	local now = SpeedData.Short(SpeedData.Gain(tier, trail))
+	local showSpeed = os.clock() >= messageUntil
+	if showSpeed then
+		sign.speed.TextColor3 = YELLOW
 	end
 	if nextInfo then
-		sign.button.Text = "UPGRADE  $" .. SpeedData.Short(nextInfo.price)
+		sign.level.Text = string.format("LEVEL %d  >  LEVEL %d", tier, tier + 1)
+		if showSpeed then
+			sign.speed.Text = string.format("⚡%s/s  >  ⚡%s/s", now, SpeedData.Short(SpeedData.Gain(tier + 1, trail)))
+		end
+		sign.button.Text = "$" .. SpeedData.Short(nextInfo.price)
 		sign.button.BackgroundColor3 = cash() >= nextInfo.price and GREEN or GREY
 		sign.button.AutoButtonColor = true
 	else
-		sign.button.Text = "MAX LEVEL ✓"
+		sign.level.Text = string.format("LEVEL %d  •  MAX", tier)
+		if showSpeed then
+			sign.speed.Text = "⚡" .. now .. "/s"
+		end
+		sign.button.Text = "MAX"
 		sign.button.BackgroundColor3 = GOLD
 		sign.button.AutoButtonColor = false
 	end
@@ -521,14 +524,15 @@ RunService.Heartbeat:Connect(function(dt)
 	local mineState = type(myPlot) == "string" and states[myPlot]
 	if mineState and mineState.mine and mineState.built then
 		if not sign or sign.plot ~= myPlot then
-			buildSign(treadmills[myPlot].Spot.CFrame, myPlot)
+			local spot = treadmills[myPlot].Spot
+			buildSign(spot.CFrame, spot:GetAttribute("SignSide") or 1, myPlot)
 			lastSign = 0
 		end
 		local info = SpeedData.Treadmills[myTier()]
 		sign.border.Color = info.rainbow and rainbow(now) or info.color
 		if now - lastSign > 0.2 then
 			lastSign = now
-			refreshSign(now)
+			refreshSign()
 		end
 	elseif sign then
 		destroySign()

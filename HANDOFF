@@ -321,3 +321,10 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Files: models/game/SetupLighting.lua (new, re-runnable). Studio: Lighting properties + Atmosphere + ColorCorrection.
 - Branch: claude/lighting (based on claude/one-gun)
 - Status: done — checked in Play at the red line (green tiles visible, soft shadows, clear sky) and in the snow world (no white blow-out). Place not saved by me — save in Studio.
+
+## Claude — 2026-10-09 20:10 UTC
+- Task: owner's request — treadmill placed like Steal an Egg (in front of the pen) with a minimal upgrade panel. Each plot's treadmill now stands just outside the pen's front fence, beside the entrance (the side further from the shops / spawn), runner facing the pen. The big sign is replaced by a small dark panel on a post at the step-on corner: "UPGRADE", "LEVEL 1 > LEVEL 2", "⚡5/s > ⚡15/s", and one price button ($10K; grey if you can't pay, MAX at the top).
+- Files: models/speed/BuildTreadmills.lua (front placement, Spot attribute SignSide), models/speed/TreadmillClient.client.lua (new panel). Studio: Workspace.Treadmills rebuilt; TreadmillClient patched.
+- Found (not mine, not changed): StarterGui.GameUI.Frames.Shop is Visible=true on spawn with an image that does not load and no script controls it — an invisible window in the middle of the screen that swallows clicks (its red X floats near the top). Owner/Codex: hide it or wire it up.
+- Branch: claude/lighting
+- Status: done — Play-tested on Plot1: treadmill in front of the pen, belt pays 5/s and holds you; real mouse click on the panel's $10K upgraded to Bronze (new model, banner, panel shows LEVEL 2 > LEVEL 3, ⚡15/s > ⚡40/s, $50K); console clean. Place not saved by me — save in Studio.
