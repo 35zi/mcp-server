@@ -1,7 +1,7 @@
 -- SpeedService (Script in ServerScriptService)
 --
 -- Speed stat, treadmills and trails (numbers in ReplicatedStorage.SpeedData).
---   * leaderstats.Speed goes up every second while you stand on the treadmill of YOUR plot (the belt area above
+--   * leaderstats.Stamina goes up every second while you stand on the treadmill of YOUR plot (the belt area above
 --     Workspace.Treadmills.<PlotName>.Spot, see SpeedData.OnBelt; the treadmill itself is drawn by SpeedClient);
 --     how much = your treadmill tier's rate x your equipped trail's gain.
 --   * Player attributes: TreadmillTier (1..), OwnedTrails ("Blue,Toxic"), EquippedTrail, OnTreadmill (= PlotName
@@ -39,7 +39,7 @@ local lastAsk = {}
 ---------------------------------------------------------------- player data
 local function speedValue(player)
 	local stats = player:FindFirstChild("leaderstats")
-	return stats and stats:FindFirstChild("Speed")
+	return stats and stats:FindFirstChild("Stamina")
 end
 
 local function owned(player)
@@ -93,9 +93,9 @@ end
 local function setup(player)
 	CashAdapter.Setup(player)
 	local stats = player:WaitForChild("leaderstats")
-	if not stats:FindFirstChild("Speed") then
+	if not stats:FindFirstChild("Stamina") then
 		local v = Instance.new("IntValue")
-		v.Name = "Speed"
+		v.Name = "Stamina" -- the treadmill stat (was called Speed)
 		v.Value = 0
 		v.Parent = stats
 	end

@@ -74,7 +74,7 @@ local function cash()
 end
 local function speedOf(p)
 	local stats = p:FindFirstChild("leaderstats")
-	local s = stats and stats:FindFirstChild("Speed")
+	local s = stats and stats:FindFirstChild("Stamina")
 	return s and s.Value or 0
 end
 local function hex(c)

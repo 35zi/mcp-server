@@ -79,7 +79,7 @@ close.Parent = window
 
 local content = make("Frame", { Name = "Content", Position = UDim2.fromScale(0.035, 0.235), Size = UDim2.fromScale(0.93, 0.72), BackgroundTransparency = 1, ZIndex = 12 }, window)
 local cashLabel = label({ Name = "Cash", Size = UDim2.fromScale(0.4, 0.11), Text = "$0", TextColor3 = GREEN, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 13 }, content, 24, 2)
-local hint = label({ Name = "Hint", Position = UDim2.fromScale(0.4, 0), Size = UDim2.fromScale(0.6, 0.11), Text = "Trails make you run faster + more ⚡ Speed/sec!", TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 13 }, content, 15, 1.4)
+local hint = label({ Name = "Hint", Position = UDim2.fromScale(0.4, 0), Size = UDim2.fromScale(0.6, 0.11), Text = "Trails make you run faster + more ⚡ Stamina/sec!", TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 13 }, content, 15, 1.4)
 local cards = make("ScrollingFrame", {
 	Name = "Cards",
 	Position = UDim2.fromScale(0, 0.14),

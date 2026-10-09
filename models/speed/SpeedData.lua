@@ -1,7 +1,8 @@
 -- SpeedData (ModuleScript in ReplicatedStorage)
 --
 -- Numbers for the Speed side of the game, shared by SpeedService (server) and SpeedClient / TrailShopClient.
---   Speed      a leaderstat that only goes up: treadmills add Speed every second while you run on them.
+--   Stamina    a leaderstat (shown as "Stamina"; the code still calls it Speed) that only goes up: treadmills add it every
+--              second while you run on them. Heavy animals need enough of it to be picked up (StaminaToCarry).
 --   Walk speed grows with Speed: x2 at 10K, x1.5 again at 20K, +16 per doubling after that, capped at MaxWalk.
 --   Trails     bought once in the trail shop (the blue stall + neon circle); the equipped one adds a little walk speed
 --              and multiplies the Speed you gain per second.
@@ -89,6 +90,19 @@ end
 function SpeedData.Walk(speed, trailId)
 	local trail = trailId and SpeedData.Trail(trailId)
 	return math.min(SpeedData.MaxWalk, SpeedData.BaseWalk + SpeedData.WalkBonus(speed) + (trail and trail.walk or 0))
+end
+
+-- Stamina you need to pick up a stunned animal of this weight (AnimalCarry checks it): nothing up to 10 kg, 400 just
+-- above, then up with the weight. Penguin 25 kg ~1,200 / Wolf 45 kg ~2,450 / Camel 500 kg ~44K / Yeti 900 kg ~89K.
+SpeedData.CarryFreeKg = 10
+function SpeedData.StaminaToCarry(kg)
+	kg = tonumber(kg) or 0
+	if kg <= SpeedData.CarryFreeKg then
+		return 0
+	end
+	local need = 400 * (kg / SpeedData.CarryFreeKg) ^ 1.2
+	local step = need < 10000 and 50 or 500 -- round numbers that are easy to read
+	return math.max(400, math.floor(need / step + 0.5) * step)
 end
 
 -- 62189 -> "62,189"

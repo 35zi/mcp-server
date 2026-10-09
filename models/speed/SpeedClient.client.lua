@@ -42,7 +42,7 @@ end
 
 local function speedValue()
 	local stats = player:FindFirstChild("leaderstats")
-	return stats and stats:FindFirstChild("Speed")
+	return stats and stats:FindFirstChild("Stamina")
 end
 local function tierInfo()
 	local tier = player:GetAttribute("TreadmillTier") or 1
@@ -107,14 +107,14 @@ local function setCounter(value, animate)
 		task.spawn(function()
 			while os.clock() - start < 0.4 do
 				local a = (os.clock() - start) / 0.4
-				counter.Text = "⚡ " .. SpeedData.Commas(from + (value - from) * a) .. " SPEED"
+				counter.Text = "⚡ " .. SpeedData.Commas(from + (value - from) * a) .. " STAMINA"
 				RunService.RenderStepped:Wait()
 			end
-			counter.Text = "⚡ " .. SpeedData.Commas(value) .. " SPEED"
+			counter.Text = "⚡ " .. SpeedData.Commas(value) .. " STAMINA"
 		end)
 		pop(counter, counterScale, 1.18)
 	else
-		counter.Text = "⚡ " .. SpeedData.Commas(value) .. " SPEED"
+		counter.Text = "⚡ " .. SpeedData.Commas(value) .. " STAMINA"
 	end
 	shownSpeed = value
 end
@@ -398,7 +398,7 @@ event.OnClientEvent:Connect(function(kind, data)
 		local before = data.total - data.amount
 		for _, m in ipairs(MILESTONES) do
 			if before < m and data.total >= m then
-				banner("⚡ " .. SpeedData.Commas(m) .. " SPEED!", "You're getting faster!", CYAN)
+				banner("⚡ " .. SpeedData.Commas(m) .. " STAMINA!", "You're getting stronger and faster!", CYAN)
 				confetti(45)
 				playSound("SpeedDing", 1, 1)
 			end
@@ -418,7 +418,7 @@ event.OnClientEvent:Connect(function(kind, data)
 	elseif kind == "Bought" then
 		local trail = SpeedData.Trail(data.id)
 		if trail then
-			banner(string.upper(trail.name) .. "!", string.format("+%d walk speed  •  x%s Speed/sec", trail.walk, tostring(trail.gain)), SpeedData.TrailColors(trail)[1])
+			banner(string.upper(trail.name) .. "!", string.format("+%d walk speed  •  x%s Stamina/sec", trail.walk, tostring(trail.gain)), SpeedData.TrailColors(trail)[1])
 			confetti(60)
 			playSound("SpeedTrail", 1, 1)
 		end
@@ -429,7 +429,7 @@ end)
 
 -- keep the counter right when Speed changes some other way
 task.spawn(function()
-	local value = player:WaitForChild("leaderstats"):WaitForChild("Speed")
+	local value = player:WaitForChild("leaderstats"):WaitForChild("Stamina")
 	setCounter(value.Value, false)
 	value.Changed:Connect(function(v)
 		if v < shownSpeed then

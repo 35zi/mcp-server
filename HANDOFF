@@ -349,3 +349,10 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Note: WalkSpeed is set on the client (server still reads 16) — server-side movement checks, if added later, must use SpeedData.Walk.
 - Branch: claude/lighting
 - Status: done — Play-tested: snap-on, walk 40 on the belt and held at belt centre, bolts + glow on screen, client walk 135 at 900K Speed (10K/20K values checked in SpeedData: 32 / 48); chime loads; console clean. Place not saved by me — save in Studio.
+
+## Claude — 2026-10-09 23:45 UTC
+- Task: owner's request — rename the treadmill stat from Speed to Stamina everywhere players see it (leaderstat is now leaderstats.Stamina; HUD "⚡ 85 STAMINA", milestone banners, trail texts), and heavy animals need Stamina to pick up: nothing up to 10 kg, 400 just above, then 400 x (kg/10)^1.2 rounded (25 kg 1,200 / 45 kg 2,450 / 500 kg 43,500 / 900 kg 88,500). The pick-up prompt shows "needs N ⚡ Stamina"; too little -> "Too heavy! You need N ⚡ Stamina - train on your treadmill".
+- Files: models/speed/SpeedData.lua (StaminaToCarry, CarryFreeKg), SpeedService/SpeedClient/TreadmillClient/TrailShopClient (leaderstat name + texts); models/game/AnimalCarry.lua (Codex file, focused: SpeedData require, prompt ObjectText, check in pickUp). Code names (SpeedData, SpeedService…) unchanged.
+- Integration note for Codex: anything reading leaderstats.Speed must read leaderstats.Stamina now.
+- Branch: claude/lighting
+- Status: done — Play-tested: leaderboard shows Stamina; sniper-stunned 17.85 kg Penguin prompt "needs 800 ⚡ Stamina"; with 0 Stamina pickup refused with the message; with 2,000 Stamina a 31.08 kg Penguin (needs 1,600) was picked up; console clean. Place not saved by me — save in Studio.

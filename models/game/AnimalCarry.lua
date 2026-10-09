@@ -18,6 +18,7 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AnimalData = require(ReplicatedStorage:WaitForChild("AnimalData"))
+local SpeedData = require(ReplicatedStorage:WaitForChild("SpeedData")) -- StaminaToCarry: heavy animals need Stamina
 local AnimalRig = require(ReplicatedStorage:WaitForChild("AnimalRig"))
 local InventoryAdapter = require(script.Parent:WaitForChild("InventoryAdapter"))
 
@@ -138,7 +139,8 @@ local function addPrompt(body)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "PickUp"
 	prompt.ActionText = "Pick up"
-	prompt.ObjectText = "Stunned " .. displayName(body.info)
+	local need = SpeedData.StaminaToCarry(AnimalData.Weight(body.info.species, body.info.weight or body.info.size))
+	prompt.ObjectText = "Stunned " .. displayName(body.info) .. (need > 0 and ("  •  needs " .. SpeedData.Commas(need) .. " ⚡ Stamina") or "")
 	prompt.HoldDuration = 0.25
 	prompt.MaxActivationDistance = PICKUP_DISTANCE
 	prompt.RequiresLineOfSight = false
@@ -266,6 +268,14 @@ pickUp = function(player, body)
 	end
 	if carrying[player] then
 		notify(player, "You can only carry one animal at a time")
+		return
+	end
+	-- heavy animals need Stamina (trained on your treadmill): models/speed/SpeedData.StaminaToCarry
+	local need = SpeedData.StaminaToCarry(AnimalData.Weight(body.info.species, body.info.weight or body.info.size))
+	local stats = player:FindFirstChild("leaderstats")
+	local stamina = stats and stats:FindFirstChild("Stamina")
+	if need > 0 and (not stamina or stamina.Value < need) then
+		notify(player, string.format("Too heavy! You need %s ⚡ Stamina - train on your treadmill", SpeedData.Commas(need)))
 		return
 	end
 	local character = player.Character
