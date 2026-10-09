@@ -390,3 +390,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Note: GameUI.Frames.Shop must stay Visible=false (it reverted to true once after a playtest because the place was not saved — Ctrl+S in Studio keeps it).
 - Branch: claude/lighting
 - Status: done — Play-tested: no night ScreenGui text except the rare toast; wall shows title + countdown. Place not saved by me — save in Studio.
+
+## Claude — 2026-10-10 03:50 UTC
+- Task: owner's request — custom loading screen in the game's style: ReplicatedFirst.LoadingScreen (models/loading/LoadingScreen.client.lua). Sky with clouds/sun rays/sparkles, grass + plot fence + blocky trees, logo (scope badge with paw + "SHOOT AN ANIMAL!" with shine + "HUNT • CATCH • COLLECT" ribbon), parade of 5 real animals from AnimalPreviews, progress bar with tips, PLAY button (auto after 12 s), SKIP button in the corner (any time). Pure UI, no uploaded images.
+- For automated tests: set Workspace attribute SkipLoadingScreen = true to skip it.
+- Branch: claude/lighting
+- Status: installed + screenshot-checked in Play (first version). Last small fixes (sparkle diamonds, badge/title spacing, Camel mesh preload) installed but NOT re-checked in Play (usage limit). Place not saved by me — save in Studio.
