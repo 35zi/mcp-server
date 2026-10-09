@@ -316,7 +316,7 @@ event.OnClientEvent:Connect(function(kind, data)
 		local _, info = tierInfo()
 		streak = (os.clock() - runningSince < 1.6) and 1 or (streak + 1)
 		local big = streak % 10 == 0
-		floatNumber(data.amount, big and YELLOW or (info.name == "Basic" and CYAN) or tierColor(info, os.clock()), big)
+		floatNumber(data.amount, big and YELLOW or tierColor(info, os.clock()), big)
 		playSound("HitTick", 1 + math.min(streak, 25) * 0.02, 0.7)
 		setCounter(data.total, true)
 		local before = data.total - data.amount

@@ -12,7 +12,7 @@
 local CHS = game:GetService("ChangeHistoryService")
 local rec = CHS:TryBeginRecording("Build plot treadmills")
 
-local FRONT, SIDE = 32, 14 -- studs in front of the plot centre (fence at 24) / beside the entrance line
+local FRONT, SIDE = 37, 14 -- studs in front of the plot centre (fence at 24; the front piece reaches 11 studs ahead) / beside the entrance line
 
 local old = workspace:FindFirstChild("Treadmills")
 if old then
@@ -113,11 +113,11 @@ for _, plot in ipairs(workspace:GetChildren()) do
 		local model = Instance.new("Model")
 		model.Name = plot.Name
 		model.Parent = folder
-		local spot = hidden("Spot", base, Vector3.new(6.6, 0.2, 12.5), model)
+		local spot = hidden("Spot", base, Vector3.new(7.8, 0.2, 14.6), model)
 		-- the panel goes on the side away from the entrance
 		local signSide = (across * bestSide):Dot(base.RightVector) >= 0 and 1 or -1
 		spot:SetAttribute("SignSide", signSide)
-		hidden("AvoidArea", base * CFrame.new(signSide * 1.5, 3, 0), Vector3.new(11, 6, 15.5), model)
+		hidden("AvoidArea", base * CFrame.new(signSide * 1.9, 3, -1.4), Vector3.new(12, 10, 20), model) -- deck, front piece and panel
 		model.PrimaryPart = spot
 		table.insert(out, string.format("%s: spot (%.0f, %.0f) faces %s, panel side %d", plot.Name, base.X, base.Z, tostring(base.LookVector), signSide))
 	end

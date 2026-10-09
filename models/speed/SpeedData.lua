@@ -5,7 +5,7 @@
 --   Walk speed grows with Speed, but slowly (log scale, capped), so big numbers feel good without breaking the game.
 --   Trails     bought once in the trail shop (the blue stall + neon circle); the equipped one adds a little walk speed
 --              and multiplies the Speed you gain per second.
---   Treadmills everyone starts on Basic; upgrades are per player and raise the Speed per second.
+--   Treadmills everyone starts on Robot; upgrades are per player, raise the Speed per second and swap the model.
 local SpeedData = {}
 
 SpeedData.BaseWalk = 16
@@ -26,13 +26,13 @@ SpeedData.Trails = {
 	{ id = "Rainbow", name = "Rainbow Trail", price = 5000000, walk = 6, gain = 2, rainbow = true },
 }
 
-SpeedData.Treadmills = {
-	{ name = "Basic", price = 0, rate = 5, color = Color3.fromRGB(150, 160, 175) },
-	{ name = "Bronze", price = 10000, rate = 15, color = Color3.fromRGB(215, 130, 60) },
-	{ name = "Silver", price = 50000, rate = 40, color = Color3.fromRGB(205, 220, 240) },
-	{ name = "Gold", price = 250000, rate = 100, color = Color3.fromRGB(255, 200, 40) },
-	{ name = "Diamond", price = 1000000, rate = 250, color = Color3.fromRGB(80, 230, 255) },
-	{ name = "Rainbow", price = 5000000, rate = 600, rainbow = true, color = Color3.fromRGB(255, 90, 200) },
+SpeedData.Treadmills = { -- each tier is its own treadmill model (TreadmillDesigns, made in Blender)
+	{ name = "Robot", price = 0, rate = 5, color = Color3.fromRGB(95, 207, 79) },
+	{ name = "Storm", price = 10000, rate = 15, color = Color3.fromRGB(89, 199, 255) },
+	{ name = "Ice", price = 50000, rate = 40, color = Color3.fromRGB(160, 249, 255) },
+	{ name = "Portal", price = 250000, rate = 100, color = Color3.fromRGB(143, 75, 255) },
+	{ name = "Volcano", price = 1000000, rate = 250, color = Color3.fromRGB(255, 138, 31) },
+	{ name = "Candy", price = 5000000, rate = 600, rainbow = true, color = Color3.fromRGB(255, 90, 165) },
 }
 
 SpeedData.RainbowColors = {
@@ -42,7 +42,7 @@ SpeedData.RainbowColors = {
 
 -- each plot's treadmill sits on Workspace.Treadmills.<PlotName>.Spot (floor frame, LookVector = the way you run);
 -- the belt is this box on top of it. Server (paying) and client (conveyor) both use OnBelt, so they always agree.
-SpeedData.Belt = { center = Vector3.new(0, 0.8, 0.4), size = Vector3.new(5, 0.2, 11) }
+SpeedData.Belt = { center = Vector3.new(0, 0.8, 0), size = Vector3.new(5.8, 0.2, 12.6) } -- = the Blender designs' Belt
 function SpeedData.OnBelt(spotCF, position, margin)
 	local p = spotCF:PointToObjectSpace(position) - SpeedData.Belt.center
 	local half = SpeedData.Belt.size / 2

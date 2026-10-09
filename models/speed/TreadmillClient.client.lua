@@ -2,8 +2,8 @@
 --
 -- Draws every plot's treadmill on this client. The server only has the invisible Workspace.Treadmills.<Plot>.Spot
 -- (BuildTreadmills); what you see is built here, in Workspace.LocalTreadmills:
---   * your own (in front of your pen): always there and solid, in the look of your tier (Basic, Bronze, Silver, Gold,
---     Diamond, Rainbow: a new model on every upgrade), with a small upgrade panel: level now > next, Speed per second
+--   * your own (in front of your pen): always there and solid, in the look of your tier (Robot, Storm, Ice, Portal,
+--     Volcano, Candy: a new Blender-made model on every upgrade), with a small upgrade panel: level now > next, Speed per second
 --     now > next and a price button (SpeedRemote "UpgradeTreadmill")
 --   * someone else's plot: only while its owner trains on it (their OnTreadmill attribute), and not solid for you
 -- Standing on your belt runs you in place: the belt is a conveyor only on your screen and your character keeps
@@ -84,139 +84,145 @@ local function rainbow(t, offset)
 	return Color3.fromHSV((t * 0.25 + (offset or 0)) % 1, 0.8, 1)
 end
 
----------------------------------------------------------------- the six treadmill looks (one per tier)
--- base = deck, frame = posts/rails/panels, trim = the glowing strips, accent = small details
-local LOOKS = {
-	{ base = "#2b2f38", frame = "#dfe3ea", trim = "#8a93a3", accent = "#ff5a5a" }, -- Basic
-	{ base = "#3a2a1f", frame = "#c07a3c", trim = "#ff9a3c", accent = "#ffd29a", metal = true, neon = true, panels = true }, -- Bronze
-	{ base = "#2f3642", frame = "#d3dce8", trim = "#eaf6ff", accent = "#4fc3ff", metal = true, neon = true, panels = true, grips = true, frontBar = true }, -- Silver
-	{ base = "#2a2216", frame = "#f2b632", trim = "#ffd84a", accent = "#fff3b0", metal = true, neon = true, panels = true, grips = true, frontBar = true, fins = true, crown = true, sparkle = true }, -- Gold
-	{ base = "#121a2b", frame = "#9feaff", trim = "#6ff0ff", accent = "#ffffff", glass = true, neon = true, panels = true, grips = true, frontBar = true, fins = true, crystals = true, sparkle = true, light = true }, -- Diamond
-	{ base = "#151515", frame = "#f4f4f4", trim = "#ff5ad2", accent = "#ffffff", neon = true, rainbow = true, panels = true, grips = true, frontBar = true, fins = true, crystals = true, arch = true, sparkle = true, light = true }, -- Rainbow
-}
+---------------------------------------------------------------- the six treadmill models (one per tier)
+-- Designed in Blender (models/speed/blender/treadmills.py) and exported as data: ReplicatedStorage.TreadmillDesigns
+-- .Tier1..Tier6 (Robot, Storm, Ice, Portal, Volcano, Candy). Each is built once into a template here, then cloned.
+-- Part names the client uses: Belt (the conveyor), Slat (slides along the belt), Glow (colour-cycles on Candy),
+-- Fx* (invisible anchors that get particles + a light).
+local designs = ReplicatedStorage:WaitForChild("TreadmillDesigns")
+local SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
+local FIRE = "rbxasset://textures/particles/fire_main.dds"
+local templates = {}
 
-local SLATS = 12
+local function template(tier)
+	if templates[tier] then
+		return templates[tier]
+	end
+	local data = require(designs:FindFirstChild("Tier" .. tier) or designs:WaitForChild("Tier1"))
+	local colors, materials = {}, {}
+	for i, c in ipairs(data.colors) do
+		colors[i] = Color3.fromHex(c)
+	end
+	for i, m in ipairs(data.materials) do
+		materials[i] = Enum.Material[m]
+	end
+	local model = Instance.new("Model")
+	model.Name = "Treadmill" .. tier
+	for _, row in ipairs(data.parts) do
+		local p = Instance.new("Part")
+		p.Name = row[1]
+		p.Color = colors[row[2]]
+		p.Material = materials[row[3]]
+		p.Transparency = row[4]
+		p:SetAttribute("Collide", row[5] == 1)
+		p.Size = Vector3.new(row[9], row[10], row[11])
+		p.CFrame = row[12] and CFrame.new(row[6], row[7], row[8], row[12], row[13], row[14], row[15]) or CFrame.new(row[6], row[7], row[8])
+		p.Anchored = true
+		p.CanTouch = false
+		p.CanQuery = false
+		p.CastShadow = row[4] < 1
+		p.TopSurface = Enum.SurfaceType.Smooth
+		p.BottomSurface = Enum.SurfaceType.Smooth
+		p.Parent = model
+	end
+	model.WorldPivot = CFrame.new()
+	templates[tier] = model
+	return model
+end
+
+local function kp(t, v)
+	return NumberSequenceKeypoint.new(t, v)
+end
+
+-- particles + light on an Fx anchor (its colour is the effect's colour)
+local function addFx(anchor)
+	local c = anchor.Color
+	local light = Instance.new("PointLight")
+	light.Color = c
+	light.Range = 14
+	light.Brightness = 1.2
+	light.Parent = anchor
+	if anchor.Name == "FxGlow" then
+		return light
+	end
+	local e = Instance.new("ParticleEmitter")
+	e.Shape = Enum.ParticleEmitterShape.Box
+	e.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+	e.Texture = SPARKLE
+	e.LightEmission = 0.8
+	e.Color = ColorSequence.new(c)
+	if anchor.Name == "FxSpark" then -- Storm: crackling sparks
+		e.Rate = 14
+		e.Lifetime = NumberRange.new(0.25, 0.5)
+		e.Speed = NumberRange.new(2, 6)
+		e.SpreadAngle = Vector2.new(180, 180)
+		e.Size = NumberSequence.new({ kp(0, 0.7), kp(1, 0) })
+		e.Color = ColorSequence.new(Color3.new(1, 1, 1), c)
+	elseif anchor.Name == "FxSnow" then -- Ice: snow drifting down
+		e.Rate = 10
+		e.Lifetime = NumberRange.new(2.5, 3.5)
+		e.Speed = NumberRange.new(0.5, 1.2)
+		e.EmissionDirection = Enum.NormalId.Bottom
+		e.Acceleration = Vector3.new(0, -1.5, 0)
+		e.Size = NumberSequence.new(0.35)
+		e.LightEmission = 0.3
+	elseif anchor.Name == "FxVoid" then -- Portal: purple specks pouring out
+		e.Rate = 16
+		e.Lifetime = NumberRange.new(1, 1.6)
+		e.Speed = NumberRange.new(0.5, 1.5)
+		e.EmissionDirection = Enum.NormalId.Back
+		e.RotSpeed = NumberRange.new(-90, 90)
+		e.Size = NumberSequence.new({ kp(0, 0.6), kp(1, 0) })
+		e.Color = ColorSequence.new(c, Color3.fromRGB(255, 107, 240))
+	elseif anchor.Name == "FxFire" then -- Volcano: flames + embers rising
+		e.Texture = FIRE
+		e.Rate = 30
+		e.Lifetime = NumberRange.new(0.6, 1)
+		e.Speed = NumberRange.new(2, 4)
+		e.EmissionDirection = Enum.NormalId.Top
+		e.Size = NumberSequence.new({ kp(0, 1.4), kp(1, 0.2) })
+		e.Transparency = NumberSequence.new({ kp(0, 0.2), kp(1, 1) })
+		e.Color = ColorSequence.new(Color3.fromRGB(255, 220, 80), Color3.fromRGB(255, 80, 20))
+		e.LightEmission = 1
+	elseif anchor.Name == "FxRainbow" then -- Candy: rainbow sparkles bursting out
+		e.Rate = 16
+		e.Lifetime = NumberRange.new(0.8, 1.4)
+		e.Speed = NumberRange.new(4, 8)
+		e.SpreadAngle = Vector2.new(180, 180)
+		e.Size = NumberSequence.new({ kp(0, 0.8), kp(1, 0) })
+		e.Color = SpeedData.ColorSequence(SpeedData.RainbowColors)
+	end
+	e.Parent = anchor
+	return light
+end
 
 -- builds a treadmill on base (the Spot's CFrame; the runner faces base.LookVector = local -Z)
 local function build(tier, base, solid)
-	local look = LOOKS[tier] or LOOKS[1]
-	local model = Instance.new("Model")
-	model.Name = "Treadmill" .. tier
-	local glows = {}
-	local function piece(name, size, offset, color, props, class)
-		local p = Instance.new(class or "Part")
-		p.Name = name
-		p.Anchored = true
-		p.Size = size
-		p.CFrame = base * offset
-		p.Color = hex(color)
-		p.Material = Enum.Material.SmoothPlastic
-		p.TopSurface = Enum.SurfaceType.Smooth
-		p.BottomSurface = Enum.SurfaceType.Smooth
-		p.CanCollide = solid
-		p.CanQuery = false
-		p.CanTouch = false
-		for k, v in pairs(props or {}) do
-			p[k] = v
-		end
-		p.Parent = model
-		return p
-	end
-	local function glow(name, size, offset, props)
-		local p = piece(name, size, offset, look.trim, props)
-		p.Material = look.neon and Enum.Material.Neon or Enum.Material.SmoothPlastic
-		p.CanCollide = false
-		p:SetAttribute("Hue", #glows * 0.07)
-		table.insert(glows, p)
-		return p
-	end
-	local frameProps = {
-		Material = look.glass and Enum.Material.Glass or look.metal and Enum.Material.Metal or Enum.Material.SmoothPlastic,
-		Transparency = look.glass and 0.2 or 0,
-		Reflectance = look.metal and 0.15 or 0,
-	}
-	local at = CFrame.new
-
-	piece("Base", Vector3.new(6.6, 0.7, 12.5), at(0, 0.35, 0), look.base)
-	local belt = piece("Belt", SpeedData.Belt.size, at(SpeedData.Belt.center), "#17181c", { Material = Enum.Material.Fabric })
-	local slats = {}
-	for i = 1, SLATS do
-		slats[i] = piece("Slat", Vector3.new(4.9, 0.05, 0.22), at(0, 0, 0), "#3d4250", { CanCollide = false })
-	end
-	for _, z in ipairs({ -5.9, 6.4 }) do
-		piece("Roller", Vector3.new(5.3, 0.9, 0.9), at(0, 0.62, z), hex(look.frame):Lerp(Color3.new(0, 0, 0), 0.45), { Shape = Enum.PartType.Cylinder })
-	end
-	for _, side in ipairs({ -1, 1 }) do
-		glow("Glow", Vector3.new(0.4, 0.32, 12.5), at(side * 3.1, 0.78, 0))
-		piece("Post", Vector3.new(0.5, 4.6, 0.5), at(side * 2.75, 3.0, -5.6), look.frame, frameProps)
-		piece("Rail", Vector3.new(0.35, 0.35, 5.2), at(side * 2.75, 4.0, -3.2), look.frame, frameProps)
-		piece("RailEnd", Vector3.new(0.45, 0.45, 0.45), at(side * 2.75, 4.0, -0.55), look.accent, { CanCollide = false })
-		if look.panels then
-			piece("Panel", Vector3.new(0.25, 0.9, 12.3), at(side * 3.45, 0.45, 0), look.frame, frameProps)
-		end
-		if look.grips then
-			piece("Grip", Vector3.new(0.5, 0.5, 1.6), at(side * 2.75, 4.0, -2.2), "#1d1d22", { CanCollide = false })
-		end
-		if look.fins then -- swept fins at the back, tall end towards the rear
-			piece("Fin", Vector3.new(0.3, 1.8, 2.6), at(side * 3.45, 1.6, 5.0), look.frame, frameProps, "WedgePart")
-		end
-		if look.crystals then
-			for _, spotAt in ipairs({ at(side * 3.35, 6.15, -5.6), at(side * 3.0, 1.5, 6.6) }) do
-				local turn = CFrame.Angles(math.rad(45), 0, math.rad(45))
-				piece("Crystal", Vector3.new(0.9, 0.9, 0.9), spotAt * turn, look.trim, { Material = Enum.Material.Glass, Transparency = 0.15, CanCollide = false })
-				glow("Glow", Vector3.new(0.45, 0.45, 0.45), spotAt * turn)
-			end
-		end
-		if look.arch then
-			glow("Glow", Vector3.new(0.5, 7.2, 0.5), at(side * 3.7, 3.6, 6.0))
+	local model = template(tier):Clone()
+	local belt, slats, glows, lights = nil, {}, {}, {}
+	for _, p in ipairs(model:GetChildren()) do
+		p.CanCollide = solid and p:GetAttribute("Collide") == true
+		if p.Name == "Belt" then
+			belt = p
+		elseif p.Name == "Slat" then
+			table.insert(slats, p)
+		elseif p.Name == "Glow" then
+			p:SetAttribute("Hue", #glows * 0.07)
+			table.insert(glows, p)
 		end
 	end
-	if look.arch then
-		glow("Glow", Vector3.new(7.9, 0.5, 0.5), at(0, 7.45, 6.0))
-	end
-	if look.frontBar then
-		glow("Glow", Vector3.new(5.2, 0.25, 0.25), at(0, 2.2, -5.75))
-	end
-
-	-- console, tilted towards the runner (no text on it, just lights)
-	local consoleCF = at(0, 5.45, -5.6) * CFrame.Angles(math.rad(-28), 0, 0)
-	piece("Console", Vector3.new(5.8, 1.5, 0.9), consoleCF, look.base)
-	glow("Glow", Vector3.new(5.8, 0.18, 0.95), consoleCF * at(0, 0.82, 0))
-	local screen = piece("Screen", Vector3.new(5, 1.1, 0.08), consoleCF * at(0, 0, 0.47), "#0b1622", { CanCollide = false })
-	glow("Glow", Vector3.new(3.6, 0.22, 0.05), consoleCF * at(0, 0.15, 0.52))
-	glow("Glow", Vector3.new(2.2, 0.16, 0.05), consoleCF * at(-0.7, -0.22, 0.52))
-	if look.crown then
-		for _, x in ipairs({ -1.6, 0, 1.6 }) do
-			piece("Crown", Vector3.new(0.55, 0.55, 0.55), consoleCF * at(x, 1.05, 0) * CFrame.Angles(0, 0, math.rad(45)), look.accent, { Material = Enum.Material.Neon, CanCollide = false })
+	table.sort(slats, function(a, b) -- front to back, so the stripe pattern stays in order while they slide
+		return a.Position.Z < b.Position.Z
+	end)
+	model:PivotTo(base)
+	for _, p in ipairs(model:GetChildren()) do
+		if p.Name:sub(1, 2) == "Fx" then
+			table.insert(lights, addFx(p))
 		end
 	end
-	if look.light then
-		local light = Instance.new("PointLight")
-		light.Color = hex(look.trim)
-		light.Range = 14
-		light.Brightness = 1.3
-		light.Parent = screen
-	end
-	if look.sparkle then
-		local a = Instance.new("Attachment")
-		a.Position = Vector3.new(0, 0.3, 5)
-		a.Parent = belt
-		local e = Instance.new("ParticleEmitter")
-		e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-		e.Rate = 6
-		e.Lifetime = NumberRange.new(1, 1.6)
-		e.Speed = NumberRange.new(1, 2.5)
-		e.SpreadAngle = Vector2.new(60, 60)
-		e.EmissionDirection = Enum.NormalId.Top
-		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
-		e.LightEmission = 0.8
-		e.Color = look.rainbow and SpeedData.ColorSequence(SpeedData.RainbowColors) or ColorSequence.new(hex(look.trim))
-		e.Parent = a
-	end
-
-	model.WorldPivot = base
 	model.Parent = localFolder
-	return { model = model, belt = belt, slats = slats, glows = glows, look = look, light = look.light and screen:FindFirstChildOfClass("PointLight") }
+	local info = SpeedData.Treadmills[tier] or SpeedData.Treadmills[1]
+	return { model = model, belt = belt, slats = slats, glows = glows, rainbow = info.rainbow == true, lights = lights }
 end
 
 -- a burst of sparkles + an expanding glow ball where a treadmill was just upgraded
@@ -297,7 +303,7 @@ local function buildSign(spotCF, signSide, plotName)
 	local model = Instance.new("Model")
 	model.Name = "UpgradeSign"
 	-- beside the step-on end of the belt, facing the people walking up, turned a little towards the treadmill
-	local pos = Vector3.new(signSide * 5.3, 0, 5)
+	local pos = Vector3.new(signSide * 5.9, 0, 6.0)
 	local dir = Vector3.new(-signSide * math.sin(math.rad(20)), 0, math.cos(math.rad(20)))
 	local cf = spotCF * CFrame.lookAt(pos, pos + dir)
 	local panelCF = CFrame.new(0, 4.1, 0) * CFrame.Angles(math.rad(12), 0, 0) -- leaning back a little
@@ -438,7 +444,7 @@ local function placeSlats(s, speed, dt)
 	s.offset = (s.offset + speed * dt) % len
 	local parts, cframes = {}, {}
 	for i, slat in ipairs(s.built.slats) do
-		local z = ((i - 0.5) * len / SLATS + s.offset) % len - len / 2
+		local z = ((i - 0.5) * len / #s.built.slats + s.offset) % len - len / 2
 		parts[i] = slat
 		cframes[i] = belt.CFrame * CFrame.new(0, belt.Size.Y / 2 + 0.025, z)
 	end
@@ -500,12 +506,12 @@ RunService.Heartbeat:Connect(function(dt)
 				if speed > 0 then
 					placeSlats(s, speed, dt)
 				end
-				if s.built.look.rainbow then
+				if s.built.rainbow then
 					for _, g in ipairs(s.built.glows) do
 						g.Color = rainbow(now, g:GetAttribute("Hue"))
 					end
-					if s.built.light then
-						s.built.light.Color = rainbow(now)
+					for _, l in ipairs(s.built.lights) do
+						l.Color = rainbow(now)
 					end
 				end
 			end
