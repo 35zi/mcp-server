@@ -51,10 +51,21 @@ remote.OnServerInvoke=function(player,destination)
   position=zone.Position+outward.Unit*math.max(outward.Magnitude,radius+4)
   look=preview and (preview.Position-position) or -outward
   if destination=="Speed" then
-   local spawn=workspace:FindFirstChild("SpawnLocation")
-   local centre=spawn and spawn.Position.X or 0
-   position=Vector3.new(centre*2-position.X,position.Y,position.Z)
-   look=Vector3.new(-look.X,look.Y,look.Z)
+   -- the Trail button: land just outside the trail shop's neon Circle, facing the blue stall
+   local circle=workspace:FindFirstChild("Circle")
+   local stall=workspace:FindFirstChild("Shop")
+   if circle then
+    local towards=stall and (stall:GetBoundingBox().Position-circle.Position) or Vector3.new(0,0,-1)
+    towards=Vector3.new(towards.X,0,towards.Z)
+    if towards.Magnitude<.01 then towards=Vector3.new(0,0,-1) end
+    position=circle.Position-towards.Unit*(math.max(circle.Size.X,circle.Size.Z)/2+5)
+    look=towards
+   else
+    local spawn=workspace:FindFirstChild("SpawnLocation")
+    local centre=spawn and spawn.Position.X or 0
+    position=Vector3.new(centre*2-position.X,position.Y,position.Z)
+    look=Vector3.new(-look.X,look.Y,look.Z)
+   end
   end
  end
  local y=floorAt(position,character)+humanoid.HipHeight+root.Size.Y/2+.15
@@ -65,7 +76,7 @@ remote.OnServerInvoke=function(player,destination)
  local desired=CFrame.lookAt(target,target+look)
  character:PivotTo(desired*root.CFrame:ToObjectSpace(character:GetPivot()))
  root.AssemblyLinearVelocity=Vector3.zero root.AssemblyAngularVelocity=Vector3.zero
- return true,destination=="Base" and "Back at your base!" or destination=="Weapons" and "Weapon shop!" or "Speed area!"
+ return true,destination=="Base" and "Back at your base!" or destination=="Weapons" and "Weapon shop!" or "Trail shop!"
 end
 Players.PlayerRemoving:Connect(function(player) last[player]=nil end)
 
