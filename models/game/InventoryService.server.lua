@@ -208,6 +208,15 @@ local function placeOnPlot(player, item)
 	for _ = 1, 60 do
 		local p = hitbox.CFrame:PointToWorldSpace(Vector3.new(rng:NextNumber(-hx, hx), 0, rng:NextNumber(-hz, hz)))
 		local ok = not spawnPoint or (Vector3.new(p.X - spawnPoint.Position.X, 0, p.Z - spawnPoint.Position.Z)).Magnitude > 7
+		-- not in the plot's treadmill corner (Workspace.Treadmills.<Plot>.AvoidArea, models/speed/BuildTreadmills)
+		local treadmill = ok and workspace:FindFirstChild("Treadmills") and workspace.Treadmills:FindFirstChild(plot.Name)
+		local avoid = treadmill and treadmill:FindFirstChild("AvoidArea")
+		if avoid then
+			local q = avoid.CFrame:PointToObjectSpace(p)
+			if math.abs(q.X) < avoid.Size.X / 2 + 2 and math.abs(q.Z) < avoid.Size.Z / 2 + 2 then
+				ok = false
+			end
+		end
 		if ok then
 			for _, other in ipairs(folder:GetChildren()) do
 				local o = other:GetPivot().Position

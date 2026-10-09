@@ -3,49 +3,18 @@
 -- Everything you see and feel on the Speed side (numbers in ReplicatedStorage.SpeedData, server in SpeedService):
 --   * walk speed = SpeedData.Walk(your Speed, your trail), applied to your own Humanoid (left alone while something
 --     else has frozen it at 0, e.g. the weapon shop view)
---   * treadmills: on a belt you run in place by yourself (the belt is a conveyor only on your screen, your character
---     keeps running forward until you press a move key or jump off), the slats scroll, the glow/console show YOUR tier
+--   * TreadmillClient draws the treadmills and runs you on yours; it sets the local attribute TrainingLocal
 --   * juice: floating "+15 ⚡" numbers, a rising tick, screen speed lines, a small FOV kick, sparkles, a Speed counter
 --     above the cash, streak, milestone and upgrade banners with confetti
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local SpeedData = require(ReplicatedStorage:WaitForChild("SpeedData"))
 local event = ReplicatedStorage:WaitForChild("SpeedEvent")
 local audio = ReplicatedStorage:FindFirstChild("GameAudio")
-local treadmills = workspace:WaitForChild("Treadmills")
--- the default PlayerModule's controls tell us if you're steering; this place may not have one, then keys decide
-local controls = nil
-task.spawn(function()
-	local module = player:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule", 10)
-	if module then
-		local ok, result = pcall(function()
-			return require(module):GetControls()
-		end)
-		if ok then
-			controls = result
-		end
-	end
-end)
-local MOVE_KEYS = { Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D, Enum.KeyCode.Up, Enum.KeyCode.Down, Enum.KeyCode.Left, Enum.KeyCode.Right }
-local function steering()
-	if controls then
-		return controls:GetMoveVector().Magnitude > 0.1
-	end
-	if UserInputService:GetFocusedTextBox() then
-		return false
-	end
-	for _, k in ipairs(MOVE_KEYS) do
-		if UserInputService:IsKeyDown(k) then
-			return true
-		end
-	end
-	return false
-end
 
 local DARK = Color3.fromRGB(8, 20, 28)
 local CYAN = Color3.fromRGB(90, 230, 255)
@@ -265,36 +234,8 @@ local function updateLines(dt, running)
 	end
 end
 
----------------------------------------------------------------- treadmills: local conveyor, auto-run, visuals
-local function beltUnder(root)
-	for _, tm in ipairs(treadmills:GetChildren()) do
-		local belt = tm:FindFirstChild("Belt")
-		if belt then
-			local p = belt.CFrame:PointToObjectSpace(root.Position)
-			if math.abs(p.X) <= belt.Size.X / 2 + 0.3 and math.abs(p.Z) <= belt.Size.Z / 2 + 0.3 and p.Y > 0 and p.Y < 6 then
-				return tm, belt
-			end
-		end
-	end
-	return nil
-end
-
-local slatState = {} -- treadmill -> { slats, offset, rest CFrames }
-local function slatsOf(tm)
-	local s = slatState[tm]
-	if s then
-		return s
-	end
-	local folder = tm:FindFirstChild("Slats")
-	local belt = tm:FindFirstChild("Belt")
-	if not folder or not belt then
-		return nil
-	end
-	s = { parts = folder:GetChildren(), offset = 0, belt = belt }
-	slatState[tm] = s
-	return s
-end
-
+---------------------------------------------------------------- while you train (TreadmillClient sets the local-only
+-- attribute TrainingLocal on you): FOV kick, speed lines, sparkles and the +N/s next to the counter
 local sparkles -- local particle emitter on your root while running
 local function setSparkles(on, color)
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -322,20 +263,8 @@ end
 local running = false
 local runningSince = 0
 local baseFov = nil
-local myBelt = nil
-RunService:BindToRenderStep("TreadmillRun", Enum.RenderPriority.Input.Value + 1, function(dt)
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	local tm, belt = nil, nil
-	if root and humanoid and humanoid.Health > 0 and not player:GetAttribute("Carrying") then
-		tm, belt = beltUnder(root)
-	end
-	if myBelt and myBelt ~= belt then
-		myBelt.AssemblyLinearVelocity = Vector3.zero
-	end
-	myBelt = belt
-	local nowRunning = belt ~= nil
+RunService.RenderStepped:Connect(function(dt)
+	local nowRunning = player:GetAttribute("TrainingLocal") == true
 	if nowRunning ~= running then
 		running = nowRunning
 		runningSince = os.clock()
@@ -343,15 +272,8 @@ RunService:BindToRenderStep("TreadmillRun", Enum.RenderPriority.Input.Value + 1,
 			playSound("Cock", 1.6, 0.6)
 		end
 	end
+	local character = player.Character
 	local camera = workspace.CurrentCamera
-	if belt then
-		local forward = belt.CFrame.LookVector
-		local walk = humanoid.WalkSpeed
-		belt.AssemblyLinearVelocity = -forward * walk
-		if not steering() then
-			humanoid:Move(forward, false)
-		end
-	end
 	-- a little FOV kick while running (only when no weapon is out, so aiming keeps its own FOV)
 	local tool = character and character:FindFirstChildOfClass("Tool")
 	if running and not tool then
@@ -368,78 +290,6 @@ RunService:BindToRenderStep("TreadmillRun", Enum.RenderPriority.Input.Value + 1,
 	local tier, info = tierInfo()
 	setSparkles(running, tierColor(info, os.clock()))
 	rateLabel.Text = running and ("+" .. SpeedData.Commas(SpeedData.Gain(tier, player:GetAttribute("EquippedTrail"))) .. "/s") or ""
-end)
-
--- belts that other players run on scroll too (their OnTreadmill attribute says which one)
-local function busyBelts()
-	local busy = {}
-	for _, p in ipairs(Players:GetPlayers()) do
-		local name = p ~= player and p:GetAttribute("OnTreadmill")
-		if name then
-			busy[name] = true
-		end
-	end
-	return busy
-end
-
-local lastUi = 0
-RunService.Heartbeat:Connect(function(dt)
-	local t = os.clock()
-	local busy = busyBelts()
-	local tier, info = tierInfo()
-	local color = tierColor(info, t)
-	local parts, cframes = {}, {}
-	for _, tm in ipairs(treadmills:GetChildren()) do
-		local s = slatsOf(tm)
-		if s then
-			local speed = (s.belt == myBelt and player.Character and player.Character:FindFirstChildOfClass("Humanoid") and player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed) or (busy[tm.Name] and 16) or 0
-			if speed > 0 then
-				local len = s.belt.Size.Z
-				s.offset = (s.offset + speed * dt) % len
-				for i, slat in ipairs(s.parts) do
-					local z = ((i - 0.5) * len / #s.parts + s.offset) % len - len / 2
-					table.insert(parts, slat)
-					table.insert(cframes, s.belt.CFrame * CFrame.new(0, s.belt.Size.Y / 2 + 0.025, z))
-				end
-			end
-		end
-		for _, g in ipairs(tm:GetChildren()) do
-			if g.Name == "Glow" then
-				g.Color = color
-			end
-		end
-	end
-	if #parts > 0 then
-		workspace:BulkMoveTo(parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
-	end
-	-- console screen / sign / prompt show YOUR treadmill (a few times a second)
-	if t - lastUi > 0.25 then
-		lastUi = t
-		local nextInfo = SpeedData.Treadmills[tier + 1]
-		local gain = SpeedData.Gain(tier, player:GetAttribute("EquippedTrail"))
-		for _, tm in ipairs(treadmills:GetChildren()) do
-			local screen = tm:FindFirstChild("Screen")
-			local display = screen and screen:FindFirstChild("Display")
-			if display then
-				display.Title.Text = string.upper(info.name) .. " TREADMILL"
-				display.Title.TextColor3 = color
-				display.Rate.Text = "⚡ +" .. SpeedData.Commas(gain) .. " SPEED / SEC"
-			end
-			local console = tm:FindFirstChild("Console")
-			local sign = console and console:FindFirstChild("Sign")
-			if sign then
-				sign.Title.Text = "⚡ " .. string.upper(info.name) .. " TREADMILL"
-				sign.Title.TextColor3 = color
-				sign.Info.Text = nextInfo and string.format("Upgrade to %s: $%s", nextInfo.name, SpeedData.Short(nextInfo.price)) or "MAX LEVEL!"
-			end
-			local prompt = console and console:FindFirstChild("UpgradePrompt")
-			if prompt then
-				prompt.Enabled = nextInfo ~= nil
-				prompt.ActionText = nextInfo and ("Upgrade $" .. SpeedData.Short(nextInfo.price)) or "Max"
-				prompt.ObjectText = nextInfo and (nextInfo.name .. " Treadmill") or "Treadmill"
-			end
-		end
-	end
 end)
 
 ---------------------------------------------------------------- walk speed

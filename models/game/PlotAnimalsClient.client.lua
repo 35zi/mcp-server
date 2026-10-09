@@ -15,6 +15,54 @@ local rng = Random.new()
 local MAX_TRIP = 14 -- studs per walk (times the animal's size)
 local AVOID_RADIUS = 6 -- keep this far from the plot's spawn point
 
+-- the treadmill corner of each plot (Workspace.Treadmills.<Plot>.AvoidArea, models/speed/BuildTreadmills) is off
+-- limits: no trip may end in it or cut through it (a trip that starts inside may leave it)
+local function crossesAvoid(from, to, margin)
+	local folder = workspace:FindFirstChild("Treadmills")
+	if not folder then
+		return false
+	end
+	for _, treadmill in ipairs(folder:GetChildren()) do
+		local box = treadmill:FindFirstChild("AvoidArea")
+		if box then
+			local a = box.CFrame:PointToObjectSpace(from)
+			local b = box.CFrame:PointToObjectSpace(to)
+			local hx, hz = box.Size.X / 2 + margin, box.Size.Z / 2 + margin
+			if math.abs(b.X) < hx and math.abs(b.Z) < hz then
+				return true
+			end
+			if not (math.abs(a.X) < hx and math.abs(a.Z) < hz) then
+				-- does the segment a -> b pass through the box? (slab test on X and Z)
+				local t0, t1 = 0, 1
+				local hit = true
+				for _, axis in ipairs({ { a.X, b.X - a.X, hx }, { a.Z, b.Z - a.Z, hz } }) do
+					local start, delta, half = axis[1], axis[2], axis[3]
+					if math.abs(delta) < 1e-6 then
+						if math.abs(start) >= half then
+							hit = false
+							break
+						end
+					else
+						local e0, e1 = (-half - start) / delta, (half - start) / delta
+						if e0 > e1 then
+							e0, e1 = e1, e0
+						end
+						t0, t1 = math.max(t0, e0), math.min(t1, e1)
+						if t0 > t1 then
+							hit = false
+							break
+						end
+					end
+				end
+				if hit then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
 local animals = {} -- [model] = state
 
 ---------------------------------------------------------------- the model's root frame (bottom centre, facing front)
@@ -68,6 +116,9 @@ local function startTrip(a)
 			delta = spot - a.pos
 		end
 		local clear = not a.avoid or Vector3.new(spot.X - a.avoid.X, 0, spot.Z - a.avoid.Z).Magnitude > AVOID_RADIUS
+		if clear and crossesAvoid(a.pos, spot, 1.5 * a.scale) then
+			clear = false
+		end
 		for _, other in pairs(animals) do -- don't walk into a friend
 			if clear and other ~= a and (Vector3.new(spot.X - other.pos.X, 0, spot.Z - other.pos.Z)).Magnitude < 4 * math.max(a.scale, other.scale) then
 				clear = false

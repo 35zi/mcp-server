@@ -40,6 +40,16 @@ SpeedData.RainbowColors = {
 	Color3.fromRGB(70, 230, 90), Color3.fromRGB(60, 170, 255), Color3.fromRGB(170, 90, 255),
 }
 
+-- each plot's treadmill sits on Workspace.Treadmills.<PlotName>.Spot (floor frame, LookVector = the way you run);
+-- the belt is this box on top of it. Server (paying) and client (conveyor) both use OnBelt, so they always agree.
+SpeedData.Belt = { center = Vector3.new(0, 0.8, 0.4), size = Vector3.new(5, 0.2, 11) }
+function SpeedData.OnBelt(spotCF, position, margin)
+	local p = spotCF:PointToObjectSpace(position) - SpeedData.Belt.center
+	local half = SpeedData.Belt.size / 2
+	margin = margin or 0
+	return math.abs(p.X) <= half.X + margin and math.abs(p.Z) <= half.Z + margin and p.Y > 0 and p.Y < 7
+end
+
 function SpeedData.Trail(id)
 	for i, t in ipairs(SpeedData.Trails) do
 		if t.id == id then

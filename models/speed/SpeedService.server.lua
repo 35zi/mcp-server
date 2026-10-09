@@ -1,12 +1,14 @@
 -- SpeedService (Script in ServerScriptService)
 --
 -- Speed stat, treadmills and trails (numbers in ReplicatedStorage.SpeedData).
---   * leaderstats.Speed goes up every second while you stand on a treadmill belt (Workspace.Treadmills.<n>.Belt);
+--   * leaderstats.Speed goes up every second while you stand on the treadmill of YOUR plot (the belt area above
+--     Workspace.Treadmills.<PlotName>.Spot, see SpeedData.OnBelt; the treadmill itself is drawn by SpeedClient);
 --     how much = your treadmill tier's rate x your equipped trail's gain.
---   * Player attributes: TreadmillTier (1..), OwnedTrails ("Blue,Toxic"), EquippedTrail, OnTreadmill.
+--   * Player attributes: TreadmillTier (1..), OwnedTrails ("Blue,Toxic"), EquippedTrail, OnTreadmill (= PlotName
+--     while training, so other clients show that treadmill).
 --   * ReplicatedStorage.SpeedRemote (RemoteFunction): "BuyTrail" id / "EquipTrail" id / "Unequip" / "UpgradeTreadmill".
 --   * ReplicatedStorage.SpeedEvent (RemoteEvent, server -> client): "Gain" {amount, total, tier},
---     "Upgraded" {tier}, "Bought" {id}, "Notice" {text}. The console ProximityPrompt on a treadmill upgrades too.
+--     "Upgraded" {tier}, "Bought" {id}, "Notice" {text}. Upgrading is the green button on the sign by your treadmill.
 -- Money goes through CashAdapter. Nothing is saved yet (same as Cash).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -187,32 +189,22 @@ remote.OnServerInvoke = function(player, action, arg)
 	return f(player, arg)
 end
 
--- the upgrade prompt on every treadmill console
-local function hookPrompt(prompt)
-	if prompt:IsA("ProximityPrompt") and prompt.Name == "UpgradePrompt" then
-		prompt.Triggered:Connect(function(player)
-			local ok, message = upgrade(player)
-			if not ok then
-				event:FireClient(player, "Notice", { text = message })
-			end
-		end)
+---------------------------------------------------------------- running (only on your own plot's treadmill)
+local function ownSpot(player)
+	local plotName = player:GetAttribute("PlotName")
+	local plot = type(plotName) == "string" and workspace:FindFirstChild(plotName)
+	if not plot or plot:GetAttribute("OwnerUserId") ~= player.UserId then
+		return nil
 	end
+	local tm = treadmills:FindFirstChild(plotName)
+	local spot = tm and tm:FindFirstChild("Spot")
+	return spot and tm, spot
 end
-for _, d in ipairs(treadmills:GetDescendants()) do
-	hookPrompt(d)
-end
-treadmills.DescendantAdded:Connect(hookPrompt)
 
----------------------------------------------------------------- running
-local function onBelt(root)
-	for _, tm in ipairs(treadmills:GetChildren()) do
-		local belt = tm:FindFirstChild("Belt")
-		if belt then
-			local p = belt.CFrame:PointToObjectSpace(root.Position)
-			if math.abs(p.X) <= belt.Size.X / 2 + 0.5 and math.abs(p.Z) <= belt.Size.Z / 2 + 0.5 and p.Y > 0 and p.Y < 7 then
-				return tm
-			end
-		end
+local function onBelt(player, root)
+	local tm, spot = ownSpot(player)
+	if tm and SpeedData.OnBelt(spot.CFrame, root.Position, 0.5) then
+		return tm
 	end
 	return nil
 end
@@ -230,7 +222,7 @@ RunService.Heartbeat:Connect(function(dt)
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-		local tm = root and humanoid and humanoid.Health > 0 and not player:GetAttribute("Carrying") and onBelt(root)
+		local tm = root and humanoid and humanoid.Health > 0 and not player:GetAttribute("Carrying") and onBelt(player, root)
 		player:SetAttribute("OnTreadmill", tm and tm.Name or nil)
 		if tm then
 			local tier = player:GetAttribute("TreadmillTier") or 1
