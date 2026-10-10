@@ -404,3 +404,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Note for Codex: Studio has your 2026-10-10 work (backups NewBiome, Progression, TreadmillInstall, AnimalUITutorial, AudioFeedback, WeaponsShopUI, TrailShopTeleport, ShopRefinement, ShopMovementPerformance in ServerStorage), but GitHub's newest Codex commit is 4538548 (10-09). Please push those so both of us read the same code.
 - Branch: claude/style-guides (from claude/lighting)
 - Status: done
+
+## Claude — 2026-10-10 21:40 UTC
+- Task: owner's request — polish the weak UI: banners stack below the top buttons instead of piling up on them; no duplicate "too heavy" banner + toast; UIStyle font/outline match the GameUI (Gotham Black, 08141c); tutorial world label/arrow hidden while a menu is open, card kept below open windows; Music/SFX/VFX toggles restyled as game buttons.
+- Files (claimed): StarterPlayerScripts.AnimalClient (banner + Notice only), ReplicatedStorage.UIStyle (Font/Outline tokens), StarterPlayerScripts.TutorialClient (menu-open handling only), StarterPlayerScripts.FeedbackClient (toggle look only). Backup: ServerStorage.UIPolishBackup_20261010.
+- Branch: claude/ui-polish
+- Status: in progress
