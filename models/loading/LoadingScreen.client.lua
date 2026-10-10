@@ -5,9 +5,13 @@
 --   * logo: classic studded bricks. "SHOOT AN" in white bricks (the second O is a red crosshair), "ANIMAL" in green
 --     bricks. Letters pop in one by one, sit a little crooked like hand-made letters and sway gently.
 --   * tip: one line, a coloured keyword ("Gold animals are rare, but valuable!"), a new one every few seconds.
---   * counter: the real number of assets (meshes, images, sounds, animations...) this client preloads, counting up.
--- Enters the game by itself once the assets and the character are ready (at least MIN_TIME, at most MAX_WAIT).
--- A small "Skip" shows up after SKIP_AFTER seconds.
+--   * counter: the real number of assets (meshes, images, sounds, animations, fonts...) being loaded, counting up.
+-- It loads EVERYTHING the game uses before letting the player in, so nothing downloads in the middle of a hunt: the
+-- server's list of all assets (ReplicatedStorage.AssetManifest, from ServerScriptService.AssetManifest: the whole map,
+-- also parts streamed out on this client, and the animal / weapon templates), plus this client's own character and
+-- menus and the UI fonts. Failed downloads are retried once, then it looks again for anything new.
+-- Enters once all of that, the character and its appearance and the menus are ready (at least MIN_TIME, at most
+-- MAX_WAIT as a safety net). A small "Skip" shows up after SKIP_AFTER seconds.
 -- Pure UI, no uploaded images, so it shows instantly. Testing tip: Workspace attribute SkipLoadingScreen = true skips it.
 -- Other scripts look for PlayerGui.LoadingScreen (FeedbackClient mutes music, TutorialClient waits): keep that name.
 local Players = game:GetService("Players")
@@ -16,6 +20,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ContentProvider = game:GetService("ContentProvider")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local TextService = game:GetService("TextService")
 
 ReplicatedFirst:RemoveDefaultLoadingScreen()
 
@@ -27,8 +32,8 @@ if workspace:GetAttribute("SkipLoadingScreen") then
 end
 
 local MIN_TIME = 3 -- seconds the logo is on screen at least
-local MAX_WAIT = 30 -- enter the game after this many seconds even if assets are still loading
-local SKIP_AFTER = 6
+local MAX_WAIT = 120 -- safety net: enter after this many seconds even if something never finishes
+local SKIP_AFTER = 10
 local TIP_TIME = 3.6
 local WHITE = Color3.new(1, 1, 1)
 
@@ -269,8 +274,8 @@ task.delay(0.15 + #letters * 0.06 + 0.2, function()
 	TweenService:Create(tip, TweenInfo.new(0.4), { TextTransparency = 0 }):Play()
 end)
 
----------------------------------------------------------------- real asset preloading (counted for the corner)
--- every remote content id the client can see; local rbxasset:// files are instant and not counted
+---------------------------------------------------------------- load everything (counted for the corner)
+-- remote content ids only; local rbxasset:// files are instant and not counted
 local CONTENT = {
 	MeshPart = { "MeshId", "TextureID" },
 	SpecialMesh = { "MeshId", "TextureId" },
@@ -291,45 +296,64 @@ local CONTENT = {
 	ShirtGraphic = { "Graphic" },
 	Tool = { "TextureId" },
 }
-local function remoteId(value)
-	if type(value) ~= "string" or value == "" then
+-- every font the menus use (they otherwise load the first time a menu opens)
+local FONTS = {
+	Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy),
+	Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold),
+	Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium),
+	Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.ExtraBold),
+	Font.new("rbxasset://fonts/families/FredokaOne.json"),
+	Font.new("rbxasset://fonts/families/LegacyArial.json"),
+}
+-- "rbxassetid://123", "http://www.roblox.com/asset/?id=123" -> "rbxassetid://123" (one entry per asset)
+local function normalise(value)
+	if type(value) ~= "string" or value == "" or value:find("rbxasset://", 1, true) then
 		return nil
 	end
 	if value:find("rbxassetid://", 1, true) or value:find("roblox.com/asset", 1, true) or value:match("^%d+$") then
-		return value
+		local number = value:match("(%d+)%s*$") or value:match("id=(%d+)")
+		return number and "rbxassetid://" .. number
 	end
 	return nil
 end
-local total, loaded = nil, 0
-local preloaded = false
-task.spawn(function()
-	if not game:IsLoaded() then
-		game.Loaded:Wait()
+local seen = {}
+local function add(list, id)
+	if id and not seen[id] then
+		seen[id] = true
+		table.insert(list, id)
 	end
-	local seen, list = {}, {}
-	local sources = {
+end
+-- everything not loaded yet: the server's full list + what only this client has
+local function gather()
+	local list = {}
+	local manifest = ReplicatedStorage:FindFirstChild("AssetManifest")
+	if manifest then
+		for number in manifest.Value:gmatch("%d+") do
+			add(list, "rbxassetid://" .. number)
+		end
+	end
+	local roots = {
 		workspace,
 		ReplicatedStorage,
+		game:GetService("StarterGui"),
 		game:GetService("Lighting"),
 		game:GetService("SoundService"),
 		game:GetService("MaterialService"),
-		game:GetService("StarterGui"),
 		ReplicatedFirst,
+		playerGui,
+		player:FindFirstChild("Backpack"),
+		player.Character,
 	}
 	local visited = 0
-	for _, source in ipairs(sources) do
-		for _, inst in ipairs(source:GetDescendants()) do
+	for _, root in ipairs(roots) do
+		for _, inst in ipairs(root:GetDescendants()) do
 			local properties = CONTENT[inst.ClassName]
 			if properties then
 				for _, property in ipairs(properties) do
 					local ok, value = pcall(function()
 						return inst[property]
 					end)
-					local id = ok and remoteId(value)
-					if id and not seen[id] then
-						seen[id] = true
-						table.insert(list, id)
-					end
+					add(list, ok and normalise(value) or nil)
 				end
 			end
 			visited += 1
@@ -338,12 +362,58 @@ task.spawn(function()
 			end
 		end
 	end
-	total = #list
+	return list
+end
+local total, loaded = nil, 0
+local preloaded = false
+local function preload(list)
+	local failed = {}
 	pcall(function()
-		ContentProvider:PreloadAsync(list, function()
+		ContentProvider:PreloadAsync(list, function(id, status)
 			loaded += 1
+			if status ~= Enum.AssetFetchStatus.Success then
+				table.insert(failed, id)
+			end
 		end)
 	end)
+	if #failed > 0 then -- one more try for anything that failed (already counted)
+		pcall(function()
+			ContentProvider:PreloadAsync(failed)
+		end)
+	end
+end
+local function loadFonts()
+	for _, font in ipairs(FONTS) do
+		pcall(function()
+			local params = Instance.new("GetTextBoundsParams")
+			params.Text = "SHOOT AN ANIMAL $0123456789"
+			params.Font = font
+			params.Size = 24
+			params.Width = 1000
+			TextService:GetTextBoundsAsync(params) -- yields until the font is downloaded
+		end)
+		loaded += 1
+	end
+end
+task.spawn(function()
+	if not game:IsLoaded() then
+		game.Loaded:Wait()
+	end
+	ReplicatedStorage:WaitForChild("AssetManifest", 15)
+	ReplicatedStorage:WaitForChild("AnimalPreviews", 15) -- built by the server (InventoryService) at start
+	local list = gather()
+	total = #list + #FONTS
+	loadFonts()
+	preload(list)
+	-- anything that showed up while loading (the character, menus, runtime-built models, a manifest update)
+	for _ = 1, 2 do
+		local more = gather()
+		if #more == 0 then
+			break
+		end
+		total += #more
+		preload(more)
+	end
 	loaded = total
 	preloaded = true
 end)
@@ -414,7 +484,11 @@ connection = RunService.RenderStepped:Connect(function()
 		TweenService:Create(skip, TweenInfo.new(0.4), { TextTransparency = 0.25 }):Play()
 	end
 	local character = player.Character
-	local ready = preloaded and character and character:FindFirstChild("HumanoidRootPart")
+	local ready = preloaded
+		and character
+		and character:FindFirstChild("HumanoidRootPart")
+		and player:HasAppearanceLoaded()
+		and playerGui:FindFirstChild("GameUI")
 	if t >= MIN_TIME and (ready or t > MAX_WAIT) then
 		task.spawn(finish)
 	end

@@ -420,3 +420,11 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Checks: two playtests: logo, tip and counter (0/1761, 2/1761 counting) on screen, fades into the game, console clean.
 - Branch: claude/loading-screen-gag
 - Status: done. Place not saved by me: save in Studio (Ctrl+S). Tutorial card restyle is next.
+
+## Claude — 2026-10-11 01:00 UTC
+- Task: owner's request — the loading screen must really load everything so nothing lags in game.
+- Files: new models/loading/AssetManifest.server.lua (ServerScriptService.AssetManifest: publishes ReplicatedStorage.AssetManifest, a StringValue of every remote asset number used by the whole map incl. parts streamed out on clients, ReplicatedStorage/Starter*/Lighting/SoundService/MaterialService and live ServerStorage folders; skips *Backup*/*Install*; rebuilt once after 8 s), models/loading/LoadingScreen.client.lua (preloads manifest + own character/PlayerGui/Backpack content + 6 UI fonts via GetTextBoundsAsync, retries failed assets once, re-gathers twice for new content, waits for HasAppearanceLoaded + GameUI; MAX_WAIT 120 s safety, Skip after 10 s). Studio identical (hash-checked).
+- Note for Codex: workspace StreamingEnabled is on, so clients can't see far worlds; anything that needs the full asset list can read ReplicatedStorage.AssetManifest.
+- Checks: playtest: manifest 1849 assets; counter 7 -> 845 -> 1815/1815 -> 1855/1855 after the re-check; entered after 8.5 s with character ready; console clean.
+- Branch: claude/loading-screen-gag
+- Status: done. Place not saved by me: save in Studio (Ctrl+S).
