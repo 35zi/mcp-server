@@ -116,17 +116,31 @@ or build the code version from section 4.
 | Loading screen | `ReplicatedFirst.LoadingScreen` (code-only; Workspace attribute `SkipLoadingScreen` skips it) |
 | Night countdown | `NightClient` |
 
-## 8. Known style problems (2026-10-10)
+## 8. Banners, toasts and the tutorial (after the 2026-10-10 polish)
 
-- The tutorial step card is a dark, thin, low-contrast box (GothamSSm Medium); it doesn't match the rest
-  and it covers the bottom of open menus.
-- World labels such as "YOUR TREADMILL" (a BillboardGui) draw on top of open menus.
-- Weapons window: both arrows show "<" in play. `Next` has Rotation 180, and `UIMotion` copies
-  Rotation onto its `MotionVisual` child too, so the arrow turns 360 degrees. Flip the image or
-  the visual instead of rotating a bound button.
-- The HUD uses no artwork and the Music/SFX/VFX toggles are flat blue squares.
+- **Banners** (`AnimalClient.banner`): a stack (`AnimalEffects.Banners`, max 3, newest at the bottom)
+  placed under the top travel buttons, and under GameFeedback's toast while one shows. Banners
+  with duration >= 6 (rare spawns) are kept over short notices. Use `banner(text, color, seconds)`;
+  never place your own text at a fixed y near the top.
+- **Refusals** ("too heavy", "can't", "cannot" in an `AnimalEvent` Notice) show only as
+  GameFeedback's red toast (FeedbackClient), not also as a banner.
+- **Screen coordinates**: `AbsolutePosition` is measured from below the Roblox top bar. To place
+  something in another ScreenGui, subtract that gui's own `AbsolutePosition`, and use
+  `IgnoreGuiInset = true` + `ScreenInsets = DeviceSafeInsets` like GameUI.
+- **Tutorial** (`TutorialClient`): while a GameUI window or the inventory is open, the step card
+  sits at the bottom edge and the world label/arrow/marker hide.
+- **Audio toggles** (`FeedbackClient`): 3D buttons with icon + name + state; green ON, red OFF,
+  gold LOW. Emoji that render in Gotham: 🎵 🔔 ✨ (🔊 does not).
+- `UIStyle` now uses Gotham Black and outline `08141c`, so the older helpers match the artwork.
 
-## 9. Testing UI via MCP
+## 9. Known style problems (still open)
+
+- `GameUI.Frames.Weapons` (artwork window, not used by the real weapon shop `WeaponShopUI`):
+  `Next` arrow has Rotation 180 and `UIMotion` copies Rotation onto `MotionVisual`, so it shows "<".
+  Flip the image or the visual instead of rotating a bound button if that window is ever used.
+- The bottom-left HUD (stamina, cash, income, wave timer) is plain outlined text with no artwork.
+
+## 10. Testing UI via MCP
 
 Playtest, then click with `user_mouse_input` at (screenshot x, screenshot y - 58). The 58px
 offset comes from the top-bar inset. To see a window without its button, set

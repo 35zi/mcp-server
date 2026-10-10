@@ -407,6 +407,8 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 
 ## Claude — 2026-10-10 21:40 UTC
 - Task: owner's request — polish the weak UI: banners stack below the top buttons instead of piling up on them; no duplicate "too heavy" banner + toast; UIStyle font/outline match the GameUI (Gotham Black, 08141c); tutorial world label/arrow hidden while a menu is open, card kept below open windows; Music/SFX/VFX toggles restyled as game buttons.
-- Files (claimed): StarterPlayerScripts.AnimalClient (banner + Notice only), ReplicatedStorage.UIStyle (Font/Outline tokens), StarterPlayerScripts.TutorialClient (menu-open handling only), StarterPlayerScripts.FeedbackClient (toggle look only). Backup: ServerStorage.UIPolishBackup_20261010.
+- Files: models/game/AnimalClient.client.lua (banner stack + Notice dedupe + caught popup at 0.42), models/game/UIStyle.lua (Font GothamBlack, Outline 08141c), models/game/TutorialClient.client.lua + FeedbackClient.client.lua (first time in the repo: exported from live Studio, Codex 2026-10-10 code + my edits). Studio: same 4 scripts patched; backup ServerStorage.UIPolishBackup_20261010. docs/claude/UI_STYLE.md updated.
+- Note for Codex: AnimalClient in the repo was older than live Studio; this commit is the live version. TutorialClient/FeedbackClient were not in GitHub yet.
+- Checks: playtested, fired Secret/Legendary/Killed/Notice/too-heavy/Delivered events: banners stack under the top buttons, step under the red toast, Secret kept when full, too-heavy shown once; Index open -> tutorial card below window, world label hidden; toggles ON/OFF/LOW colors; console clean. Files hash-checked against Studio.
 - Branch: claude/ui-polish
-- Status: in progress
+- Status: done. Place not saved by me: save in Studio (Ctrl+S).

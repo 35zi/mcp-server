@@ -169,7 +169,8 @@ for _, model in ipairs(animalsFolder:GetChildren()) do
 end
 
 ---------------------------------------------------------------- HUD: animals in your bag + wave timer (bottom left), banners, popup
-local gui = make("ScreenGui", { Name = "AnimalEffects", ResetOnSpawn = false, DisplayOrder = 4, Parent = player:WaitForChild("PlayerGui") })
+-- same coordinate space as GameUI, so banners can line up under its top buttons
+local gui = make("ScreenGui", { Name = "AnimalEffects", ResetOnSpawn = false, DisplayOrder = 4, IgnoreGuiInset = true, ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets, Parent = player:WaitForChild("PlayerGui") })
 task.spawn(function() -- hide while the full-screen Weapon Shop view is open
 	local shopGui = player.PlayerGui:WaitForChild("WeaponShopUI", 60)
 	if shopGui then
@@ -180,26 +181,118 @@ task.spawn(function() -- hide while the full-screen Weapon Shop view is open
 		sync()
 	end
 end)
+-- Banners stack under the top travel buttons (newest at the bottom, at most 3) instead of piling up on them,
+-- and step below GameFeedback's toast while one is showing.
+local MAX_BANNERS = 3
+local bannerStack = make("Frame", {
+	Name = "Banners",
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 100),
+	Size = UDim2.new(1, -40, 0, 0),
+	AutomaticSize = Enum.AutomaticSize.Y,
+	BackgroundTransparency = 1,
+	Parent = gui,
+})
+make("UIListLayout", {
+	SortOrder = Enum.SortOrder.LayoutOrder,
+	HorizontalAlignment = Enum.HorizontalAlignment.Center,
+	Padding = UDim.new(0, 2),
+	Parent = bannerStack,
+})
+local function placeBanners()
+	local gameUI = player.PlayerGui:FindFirstChild("GameUI")
+	local top = gameUI and gameUI:FindFirstChild("TopButtons")
+	local bottom = -math.huge
+	if top then
+		for _, button in ipairs(top:GetChildren()) do
+			if button:IsA("GuiObject") and button.Visible then
+				bottom = math.max(bottom, button.AbsolutePosition.Y + button.AbsoluteSize.Y)
+			end
+		end
+	end
+	local feedback = player.PlayerGui:FindFirstChild("GameFeedback")
+	local toast = feedback and feedback:FindFirstChild("FeedbackToast")
+	if toast then
+		bottom = math.max(bottom, toast.AbsolutePosition.Y + toast.AbsoluteSize.Y)
+	end
+	-- AbsolutePosition is measured below the Roblox top bar; convert to this ScreenGui's own space
+	local goal = UDim2.new(0.5, 0, 0, bottom > -math.huge and bottom - gui.AbsolutePosition.Y + 8 or 100)
+	TweenService:Create(bannerStack, TweenInfo.new(0.2, Enum.EasingStyle.Quad), { Position = goal }):Play()
+end
+player.PlayerGui.DescendantAdded:Connect(function(node)
+	if node.Name == "FeedbackToast" then
+		task.defer(placeBanners)
+	end
+end)
+player.PlayerGui.DescendantRemoving:Connect(function(node)
+	if node.Name == "FeedbackToast" then
+		task.defer(placeBanners)
+	end
+end)
+local bannerOrder = 0
 local function banner(message, color, duration)
-	local label = text({
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, -70),
-		Size = UDim2.fromOffset(980, 54),
-		Text = message,
-		TextSize = 40,
-		Stroke = 4,
-		TextColor3 = color,
-		Parent = gui,
+	placeBanners()
+	bannerOrder += 1
+	local slot = make("Frame", {
+		Name = "Banner",
+		Size = UDim2.new(1, 0, 0, 44),
+		BackgroundTransparency = 1,
+		LayoutOrder = bannerOrder,
+		Parent = bannerStack,
 	})
+	-- long announcements (rare spawns) outlive short notices when the stack is full
+	slot:SetAttribute("Keep", (duration or 3.5) >= 6)
+	local label = text({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, -0.8),
+		Size = UDim2.fromScale(1, 1),
+		Text = message,
+		TextScaled = true,
+		Stroke = 3,
+		TextColor3 = color,
+		Parent = slot,
+	})
+	make("UITextSizeConstraint", { MinTextSize = 14, MaxTextSize = 36, Parent = label })
+	local slots = {}
+	for _, child in ipairs(bannerStack:GetChildren()) do
+		if child.Name == "Banner" then
+			table.insert(slots, child)
+		end
+	end
+	table.sort(slots, function(a, b)
+		return a.LayoutOrder < b.LayoutOrder
+	end)
+	local extra = #slots - MAX_BANNERS
+	for _, old in ipairs(slots) do
+		if extra <= 0 then
+			break
+		end
+		if old ~= slot and not old:GetAttribute("Keep") then
+			old:Destroy()
+			extra -= 1
+		end
+	end
+	for _, old in ipairs(slots) do
+		if extra <= 0 then
+			break
+		end
+		if old.Parent and old ~= slot then
+			old:Destroy()
+			extra -= 1
+		end
+	end
 	local stroke = label:FindFirstChildOfClass("UIStroke")
-	TweenService:Create(label, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.new(0.5, 0, 0, 84) }):Play()
+	TweenService:Create(label, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.fromScale(0.5, 0.5) }):Play()
 	task.delay(duration or 3.5, function()
+		if not slot.Parent then
+			return
+		end
 		local info = TweenInfo.new(0.5)
 		TweenService:Create(label, info, { TextTransparency = 1 }):Play()
 		local fade = TweenService:Create(stroke, info, { Transparency = 1 })
 		fade:Play()
 		fade.Completed:Wait()
-		label:Destroy()
+		slot:Destroy()
 	end)
 	return label
 end
@@ -237,7 +330,7 @@ local function caughtPopup(data)
 	local frame = make("Frame", {
 		Name = "Caught",
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.32),
+		Position = UDim2.fromScale(0.5, 0.42), -- below the banner stack
 		Size = UDim2.fromOffset(500, 156),
 		BackgroundColor3 = WHITE,
 		Parent = gui,
@@ -325,7 +418,11 @@ animalEvent.OnClientEvent:Connect(function(kind, data)
 	elseif kind == "Killed" then
 		banner(string.format("💫 %s STUNNED! Grab it (E) before it wakes up!", string.upper(AnimalData.DisplayName(data.species, data.weight or data.size, data.mutation))), WHITE, 3)
 	elseif kind == "Notice" then
-		banner(data.text, WHITE, 2.5)
+		-- refusals ("too heavy", "can't") already get FeedbackClient's red toast; don't show them twice
+		local lower = string.lower(data.text or "")
+		if not (lower:find("too heavy", 1, true) or lower:find("can't", 1, true) or lower:find("cannot", 1, true)) then
+			banner(data.text, WHITE, 2.5)
+		end
 	elseif kind == "Mutation" then
 		-- a mutation, or a rarity above AnimalData.AnnounceAbove (Legendary), arrived with the wave
 		local parts = {}
@@ -392,76 +489,38 @@ for _, name in ipairs({ "AnimalBodies", "PlotAnimals" }) do
 	end)
 end
 
----------------------------------------------------------------- stunned animals: wobbling stars + wake-up countdown
--- A shot-down animal lying in Workspace.AnimalBodies has attribute StunEnd (server time it wakes up, AnimalCarry).
-local STUN_TIME = AnimalData.StunTime or 10
-local TIMER_FULL, TIMER_EMPTY = Color3.fromRGB(255, 214, 51), Color3.fromRGB(235, 64, 52)
-local stunTags = {} -- [model] = { gui, fill, stars }
-
-local function stunTag(model)
-	if stunTags[model] or not model.PrimaryPart then
-		return
-	end
-	local gui = make("BillboardGui", {
-		Name = "StunTag",
-		Adornee = model.PrimaryPart,
-		Size = UDim2.fromOffset(110, 48),
-		StudsOffsetWorldSpace = Vector3.new(0, 2.6, 0),
-		LightInfluence = 0,
-		MaxDistance = 90,
-		ResetOnSpawn = false,
-		Parent = player:WaitForChild("PlayerGui"),
-	})
-	local stars = text({ Size = UDim2.new(1, 0, 0, 28), Text = "💫💫💫", TextSize = 24, Stroke = 0, Parent = gui })
-	local bar = make("Frame", {
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -3),
-		Size = UDim2.fromOffset(86, 12),
-		BackgroundColor3 = Color3.fromRGB(40, 34, 46),
-		Parent = gui,
-	})
-	UIStyle.corner(bar, 6)
-	UIStyle.stroke(bar, 2.5)
-	local fill = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = TIMER_FULL, BorderSizePixel = 0, Parent = bar })
-	UIStyle.corner(fill, 6)
-	stunTags[model] = { gui = gui, fill = fill, stars = stars }
-end
-
-local function watchBody(model)
-	if not model:IsA("Model") then
-		return
-	end
-	model:GetAttributeChangedSignal("StunEnd"):Connect(function()
-		if model:GetAttribute("StunEnd") and model.Parent then
-			stunTag(model)
-		end
-	end)
-	if model:GetAttribute("StunEnd") then
-		stunTag(model)
-	end
-end
-
+---------------------------------------------------------------- one consistent card for live and toppled animals
+local Overhead=require(ReplicatedStorage:WaitForChild("AnimalOverheadUI"))
+local overheadTags={}
 task.spawn(function()
-	local bodiesFolder = workspace:WaitForChild("AnimalBodies")
-	bodiesFolder.ChildAdded:Connect(watchBody)
-	for _, model in ipairs(bodiesFolder:GetChildren()) do
-		watchBody(model)
-	end
-	RunService.RenderStepped:Connect(function()
-		local now = workspace:GetServerTimeNow()
-		for model, tag in pairs(stunTags) do
-			local stunEnd = model:GetAttribute("StunEnd")
-			if not stunEnd or model.Parent ~= bodiesFolder then
-				tag.gui:Destroy() -- picked up, woke up or brought home
-				stunTags[model] = nil
-			else
-				local left = math.clamp((stunEnd - now) / STUN_TIME, 0, 1)
-				tag.fill.Size = UDim2.fromScale(left, 1)
-				tag.fill.BackgroundColor3 = TIMER_EMPTY:Lerp(TIMER_FULL, left)
-				tag.stars.Rotation = math.sin(os.clock() * 5) * 14
-			end
-		end
-	end)
+ local bodies=workspace:WaitForChild("AnimalBodies")
+ local function track(model)
+  if not model:IsA("Model") or overheadTags[model] then return end
+  if not model.PrimaryPart then task.wait(.1) end
+  if model.Parent~=animalsFolder and model.Parent~=bodies then return end
+  local tag=Overhead.Create(model,player.PlayerGui)
+  if tag then overheadTags[model]=tag end
+ end
+ animalsFolder.ChildAdded:Connect(track);bodies.ChildAdded:Connect(track)
+ for _,folder in {animalsFolder,bodies} do for _,model in folder:GetChildren() do track(model) end end
+ local nextUpdate=0
+ RunService.RenderStepped:Connect(function()
+  local now=workspace:GetServerTimeNow()
+  local root=player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+  local refresh=now>=nextUpdate;if refresh then nextUpdate=now+.1 end
+  for model,tag in pairs(overheadTags) do
+   if (model.Parent~=animalsFolder and model.Parent~=bodies) or not model.PrimaryPart then
+    Overhead.Destroy(tag);overheadTags[model]=nil
+   else
+    local distance=root and (model.PrimaryPart.Position-root.Position).Magnitude or math.huge
+    if refresh then
+     tag.gui.Enabled=distance<100 and model:GetAttribute("Dragging")~=true
+     if tag.gui.Enabled then Overhead.Update(model,tag,distance<42,now) end
+    end
+    if tag.gui.Enabled then Overhead.Anchor(model,tag) end
+   end
+  end
+ end)
 end)
 
 ---------------------------------------------------------------- carriers: the right arm holds the animal on the shoulder
@@ -470,15 +529,15 @@ end)
 -- bent back so the hand grips the animal's hind end on top of the shoulder. Works for Motor6D joints and for the
 -- newer AnimationConstraint joints (both have a Transform the animations write).
 local ARM_POSE = {
-	{ "RightUpperArm", "RightShoulder", CFrame.Angles(math.rad(155), 0, math.rad(-28)) },
-	{ "RightLowerArm", "RightElbow", CFrame.Angles(math.rad(125), 0, 0) },
+	{ "RightUpperArm", "RightShoulder", CFrame.Angles(math.rad(-22), 0, math.rad(-18)) },
+	{ "RightLowerArm", "RightElbow", CFrame.Angles(math.rad(22), 0, 0) },
 	{ "RightHand", "RightWrist", CFrame.identity },
-	{ "Torso", "Right Shoulder", CFrame.Angles(0, 0, math.rad(170)) }, -- R6
+	{ "Torso", "Right Shoulder", CFrame.Angles(0, 0, math.rad(-25)) }, -- R6
 }
 RunService.PreSimulation:Connect(function()
 	for _, p in ipairs(Players:GetPlayers()) do
 		local character = p.Character
-		if character and p:GetAttribute("Carrying") then
+		if character and p:GetAttribute("Dragging") then
 			for _, joint in ipairs(ARM_POSE) do
 				local holder = character:FindFirstChild(joint[1])
 				local j = holder and holder:FindFirstChild(joint[2])

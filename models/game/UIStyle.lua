@@ -17,8 +17,9 @@ local TweenService = game:GetService("TweenService")
 
 local UIStyle = {}
 
-UIStyle.Font = Enum.Font.FredokaOne
-UIStyle.Outline = Color3.fromRGB(24, 18, 28)
+-- same font and outline as the GameUI artwork menus (AnimalMenuClient, AnimalOverheadUI, LoadingScreen)
+UIStyle.Font = Enum.Font.GothamBlack
+UIStyle.Outline = Color3.fromRGB(8, 20, 28)
 UIStyle.Colors = {
 	Green = Color3.fromRGB(76, 208, 56),
 	Blue = Color3.fromRGB(54, 150, 255),
