@@ -113,7 +113,7 @@ or build the code version from section 4.
 | Pet inventory + hotbar | `AnimalInventoryClient` (+ `AnimalInventoryLayout`) |
 | Banners, catch popups | `AnimalClient`, `HuntingFeedback`, `FeedbackClient` |
 | Tutorial | `TutorialClient`, `TutorialSpotlight` |
-| Loading screen | `ReplicatedFirst.LoadingScreen` (code-only; Workspace attribute `SkipLoadingScreen` skips it) |
+| Loading screen | `ReplicatedFirst.LoadingScreen` (code-only, Grow a Garden style: black screen, studded brick logo with a red crosshair O, one coloured-keyword tip, real "Loading N/M" asset counter; Workspace attribute `SkipLoadingScreen` skips it) |
 | Night countdown | `NightClient` |
 
 ## 8. Banners, toasts and the tutorial (after the 2026-10-10 polish)

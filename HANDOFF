@@ -415,6 +415,8 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 
 ## Claude — 2026-10-11 00:20 UTC
 - Task: owner's request — loading screen remade in the Grow a Garden style: black screen, studded brick logo (white "SHOOT AN" with a red crosshair O, green "ANIMAL"), one rotating tip with a coloured keyword, small "Loading N/M" counter of the real assets being preloaded.
-- Files (claimed): ReplicatedFirst.LoadingScreen (models/loading/LoadingScreen.client.lua). Backup: ServerStorage.LoadingScreenBackup_20261011.
+- Files: models/loading/LoadingScreen.client.lua (full rewrite; Studio ReplicatedFirst.LoadingScreen identical, hash-checked). Backup of the old one: ServerStorage.LoadingScreenBackup_20261011. docs/claude/UI_STYLE.md updated.
+- Details: logo is ~230 bricks (Frames: edge + face + stud + stud shadow) in a bold 2-brick pixel font, letters pop in and sway; tips rotate every 3.6 s; counter = unique remote content ids (meshes, images, sounds, animations, textures...) in Workspace, ReplicatedStorage, Lighting, SoundService, MaterialService, StarterGui, ReplicatedFirst, preloaded with PreloadAsync and counted per callback (1761 in this place). Enters when preloaded + character ready (min 3 s, max 30 s); small "Skip" after 6 s. Keeps the PlayerGui.LoadingScreen name (FeedbackClient, TutorialClient) and the SkipLoadingScreen attribute.
+- Checks: two playtests: logo, tip and counter (0/1761, 2/1761 counting) on screen, fades into the game, console clean.
 - Branch: claude/loading-screen-gag
-- Status: in progress (tutorial card restyle paused, will continue after)
+- Status: done. Place not saved by me: save in Studio (Ctrl+S). Tutorial card restyle is next.
