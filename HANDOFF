@@ -412,3 +412,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Checks: playtested, fired Secret/Legendary/Killed/Notice/too-heavy/Delivered events: banners stack under the top buttons, step under the red toast, Secret kept when full, too-heavy shown once; Index open -> tutorial card below window, world label hidden; toggles ON/OFF/LOW colors; console clean. Files hash-checked against Studio.
 - Branch: claude/ui-polish
 - Status: done. Place not saved by me: save in Studio (Ctrl+S).
+
+## Claude — 2026-10-11 00:20 UTC
+- Task: owner's request — loading screen remade in the Grow a Garden style: black screen, studded brick logo (white "SHOOT AN" with a red crosshair O, green "ANIMAL"), one rotating tip with a coloured keyword, small "Loading N/M" counter of the real assets being preloaded.
+- Files (claimed): ReplicatedFirst.LoadingScreen (models/loading/LoadingScreen.client.lua). Backup: ServerStorage.LoadingScreenBackup_20261011.
+- Branch: claude/loading-screen-gag
+- Status: in progress (tutorial card restyle paused, will continue after)
