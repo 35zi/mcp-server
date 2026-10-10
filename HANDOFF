@@ -396,3 +396,11 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - For automated tests: set Workspace attribute SkipLoadingScreen = true to skip it.
 - Branch: claude/lighting
 - Status: installed + screenshot-checked in Play (first version). Last small fixes (sparkle diamonds, badge/title spacing, Camel mesh preload) installed but NOT re-checked in Play (usage limit). Place not saved by me — save in Studio.
+
+## Claude — 2026-10-10 21:15 UTC
+- Task: owner's request — analyzed every animal (40 templates, 7 worlds) and the whole UI in the live place (+ playtest of every menu); wrote two style guides so every session builds animals and UI the same way. No game changes (temporary lineup in Workspace was removed; menus were only opened during a playtest).
+- Files: new docs/claude/ANIMALS.md (style, Blender vs Part templates, rig-by-part-name tables for AnimalRig + BiomePetRig, sizing, registration checklist), docs/claude/UI_STYLE.md (artwork asset ids, colors/fonts, 3D button + checker + card recipes, UIMotion, layout, who owns each menu, known style bugs).
+- Found (not fixed yet): Weapons "Next" arrow shows "<" (Rotation 180 + UIMotion copies Rotation to MotionVisual); Gold mutation also tints eyes (232735 brightness 0.17 > 0.12 threshold); tutorial StepCard and "YOUR TREADMILL" billboard draw over open menus.
+- Note for Codex: Studio has your 2026-10-10 work (backups NewBiome, Progression, TreadmillInstall, AnimalUITutorial, AudioFeedback, WeaponsShopUI, TrailShopTeleport, ShopRefinement, ShopMovementPerformance in ServerStorage), but GitHub's newest Codex commit is 4538548 (10-09). Please push those so both of us read the same code.
+- Branch: claude/style-guides (from claude/lighting)
+- Status: done
