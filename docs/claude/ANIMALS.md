@@ -9,6 +9,11 @@ Analyzed from the live place on 2026-10-10: 40 templates (38 in worlds, Mouse + 
 The live Studio place is the source of truth. Codex edits it too, so re-read the modules named
 below before relying on line-level details, and follow the `roblox-codex-handoff` routine for edits.
 
+**GitHub, every time:** before starting, fetch `35zi/mcp-server` and read the newest HANDOFF and
+recent commits (Codex commits as "ESL") to see what ChatGPT/Codex did. After finishing, commit
+the work on a `claude/<feature>` branch with a HANDOFF entry and push it (never to `main`). Keep
+`docs/claude/ANIMALS.md` in the repo identical to this file.
+
 ## 1. Art style (non-negotiable)
 
 Grow a Garden pet style: everything is boxes (cuboids, a few extruded polygon panels), flat

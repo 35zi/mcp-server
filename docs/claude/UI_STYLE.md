@@ -9,6 +9,11 @@ Analyzed from the live place and a playtest on 2026-10-10. The live place is the
 (Codex edits it too); re-read the owning script before changing a menu, and follow the
 `roblox-codex-handoff` routine.
 
+**GitHub, every time:** before starting, fetch `35zi/mcp-server` and read the newest HANDOFF and
+recent commits (Codex commits as "ESL") to see what ChatGPT/Codex did. After finishing, commit
+the work on a `claude/<feature>` branch with a HANDOFF entry and push it (never to `main`). Keep
+`docs/claude/UI_STYLE.md` in the repo identical to this file.
+
 ## 1. The look in one paragraph
 
 Bright Roblox "simulator" style: chunky saturated panels with a studded/checker brick texture,
