@@ -4,9 +4,11 @@
 --   * walk speed = SpeedData.Walk(your Speed, your trail), applied to your own Humanoid (left alone while something
 --     else has frozen it at 0, e.g. the weapon shop view)
 --   * TreadmillClient draws the treadmills and runs you on yours; it sets the local attribute TrainingLocal
---   * juice: floating "+15 ⚡" numbers, ⚡ bolts flying from all over the screen into the counter, glowing screen
---     edges, a soft chime, screen speed lines, a small FOV kick, sparkles, faster running on the belt, a Speed counter
---     above the cash, streak, milestone and upgrade banners with confetti
+--   * juice: floating "+15 <lungs>" numbers in your treadmill's colour, ⚡ bolts flying from all over the screen into
+--     the counter, glowing screen edges, screen speed lines, a small FOV kick, sparkles, faster running on the belt, a
+--     Speed counter above the cash, streak, milestone and upgrade banners with confetti
+--   * running on the treadmill is silent (no whoosh/chime, your footsteps are muted); upgrades still play a sound
+local feedback=require(game:GetService("ReplicatedStorage"):WaitForChild("GameFeedback"))
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -21,7 +23,7 @@ local DARK = Color3.fromRGB(8, 20, 28)
 local CYAN = Color3.fromRGB(90, 230, 255)
 local YELLOW = Color3.fromRGB(255, 225, 70)
 local TREADMILL_RUN = 2.5 -- walk speed x this while you run on your treadmill
-local MILESTONES = { 100, 500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000, 50000000, 100000000 }
+local LUNGS_ICON = "rbxassetid://137679356827216" -- white lungs with a dark outline, tinted with the treadmill colour
 
 local function make(class, props, parent)
 	local x = Instance.new(class)
@@ -77,21 +79,30 @@ end
 
 ---------------------------------------------------------------- HUD: Speed counter above the cash + toasts + banners
 local ui = make("ScreenGui", { Name = "SpeedUI", ResetOnSpawn = false, DisplayOrder = 10, IgnoreGuiInset = true }, player:WaitForChild("PlayerGui"))
-local hud = make("Frame", { Name = "Speed", AnchorPoint = Vector2.new(0, 1), Size = UDim2.fromOffset(300, 40), BackgroundTransparency = 1 }, ui)
+local hud = make("Frame", { Name = "Speed", AnchorPoint = Vector2.new(0, 1), Size = UDim2.fromOffset(340, 36), BackgroundTransparency = 1 }, ui)
 local hudScale = make("UIScale", {}, hud)
-local counter = outlined({ Name = "Counter", Size = UDim2.fromScale(0.62, 1), Text = "⚡ 0", TextColor3 = CYAN, TextXAlignment = Enum.TextXAlignment.Left }, hud, 2.2)
+local counter = outlined({ Name = "Counter", Size = UDim2.fromScale(1, 1), Text = "⚡ 0", TextColor3 = CYAN, TextXAlignment = Enum.TextXAlignment.Left }, hud, 2.2)
 local counterScale = make("UIScale", {}, counter)
 local rateLabel = outlined({ Name = "Rate", Position = UDim2.fromScale(0.62, 0.15), Size = UDim2.fromScale(0.38, 0.7), Text = "", TextColor3 = YELLOW, TextXAlignment = Enum.TextXAlignment.Left }, hud, 1.8)
 
+counter.TextScaled=false;counter.TextSize=28;counter.TextWrapped=false
+rateLabel.Visible=false
 local function placeHUD()
 	local vp = workspace.CurrentCamera.ViewportSize
 	local scale = math.min(1, vp.X / 800, vp.Y / 550)
 	hudScale.Scale = scale
 	-- just above Codex's HUD (bottom-left, 104 px tall at scale 1)
-	hud.Position = UDim2.new(0.016, 0, 0.975, -math.floor(110 * scale))
+	local main=player.PlayerGui:FindFirstChild("GameUI")
+ local walletHUD=main and main:FindFirstChild("HUD")
+ hud.Position = walletHUD and walletHUD.Position or UDim2.new(0,16,1,-16)
 end
 placeHUD()
 workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(placeHUD)
+task.spawn(function()
+ local main=player.PlayerGui:WaitForChild("GameUI")
+ main:WaitForChild("HUD"):GetPropertyChangedSignal("Position"):Connect(placeHUD)
+ placeHUD()
+end)
 
 local function pop(object, scale, size)
 	scale.Scale = size or 1.25
@@ -99,24 +110,14 @@ local function pop(object, scale, size)
 end
 
 local shownSpeed = 0
-local function setCounter(value, animate)
-	value = value or 0
-	if animate and value > shownSpeed then
-		local from = shownSpeed
-		local start = os.clock()
-		task.spawn(function()
-			while os.clock() - start < 0.4 do
-				local a = (os.clock() - start) / 0.4
-				counter.Text = "⚡ " .. SpeedData.Commas(from + (value - from) * a) .. " STAMINA"
-				RunService.RenderStepped:Wait()
-			end
-			counter.Text = "⚡ " .. SpeedData.Commas(value) .. " STAMINA"
-		end)
-		pop(counter, counterScale, 1.18)
-	else
-		counter.Text = "⚡ " .. SpeedData.Commas(value) .. " STAMINA"
-	end
-	shownSpeed = value
+local lastCounterPop=0
+local function setCounter(value,animate)
+ value=value or 0
+ counter.Text="⚡ "..SpeedData.Short(value).." STAMINA"
+ if animate and value>shownSpeed and os.clock()-lastCounterPop>.7 then
+  lastCounterPop=os.clock();pop(counter,counterScale,1.06)
+ end
+ shownSpeed=value
 end
 
 local toastSerial = 0
@@ -135,6 +136,7 @@ local function notice(message, color)
 end
 
 local function confetti(count)
+    if player:GetAttribute("EffectsReduced") then return end
 	for _ = 1, count or 40 do
 		local c = make("Frame", {
 			AnchorPoint = Vector2.new(0.5, 0.5),
@@ -182,7 +184,7 @@ local function banner(title, subtitle, color)
 	end)
 end
 
----------------------------------------------------------------- floating "+15 ⚡" over your head
+---------------------------------------------------------------- floating "+15 <lungs>" over your head
 local function floatNumber(amount, color, big)
 	local character = player.Character
 	local head = character and (character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart"))
@@ -196,13 +198,19 @@ local function floatNumber(amount, color, big)
 		LightInfluence = 0,
 		Adornee = head,
 	}, player.PlayerGui) -- BillboardGuis do not draw inside a ScreenGui
-	local label = outlined({ Size = UDim2.fromScale(1, 1), Text = "+" .. SpeedData.Commas(amount) .. " ⚡", TextColor3 = color }, gui, 2.5)
+	local label = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, gui)
+	local text = outlined({ Size = UDim2.fromScale(0.66, 1), Text = "+" .. SpeedData.Commas(amount), TextColor3 = color, TextXAlignment = Enum.TextXAlignment.Right }, label, 2.5)
+	local icon = make("ImageLabel", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.fromScale(0.68, 0.5), Size = UDim2.fromScale(0.3, 1), BackgroundTransparency = 1, Image = LUNGS_ICON, ImageColor3 = color, ScaleType = Enum.ScaleType.Fit }, label)
 	local scale = make("UIScale", { Scale = 0.4 }, label)
 	TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 	TweenService:Create(gui, TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { StudsOffsetWorldSpace = gui.StudsOffsetWorldSpace + Vector3.new(0, 4.5, 0) }):Play()
 	task.delay(0.55, function()
-		TweenService:Create(label, TweenInfo.new(0.5), { TextTransparency = 1 }):Play()
-		TweenService:Create(label:FindFirstChildOfClass("UIStroke"), TweenInfo.new(0.5), { Transparency = 1 }):Play()
+        -- Respawning can remove this temporary billboard before its fade timer fires.
+        if not gui.Parent or not label.Parent then return end
+		TweenService:Create(text, TweenInfo.new(0.5), { TextTransparency = 1 }):Play()
+		TweenService:Create(icon, TweenInfo.new(0.5), { ImageTransparency = 1 }):Play()
+        local stroke=text:FindFirstChildOfClass("UIStroke")
+        if stroke then TweenService:Create(stroke, TweenInfo.new(0.5), { Transparency = 1 }):Play() end
 	end)
 	task.delay(1.15, function()
 		gui:Destroy()
@@ -225,6 +233,7 @@ for _, e in ipairs({
 end
 local glow = 0 -- 0..1, fades out by itself
 local function setGlow(color)
+    if player:GetAttribute("EffectsReduced") then return end
 	glow = 1
 	for _, e in ipairs(edges) do
 		e.frame.BackgroundColor3 = color
@@ -242,6 +251,7 @@ RunService.RenderStepped:Connect(function(dt)
 end)
 
 local function rush(count, color)
+    if player:GetAttribute("EffectsReduced") then return end
 	local vp = workspace.CurrentCamera.ViewportSize
 	local target = counter.AbsolutePosition + counter.AbsoluteSize * Vector2.new(0.15, 0.5)
 	for _ = 1, count do
@@ -336,8 +346,17 @@ RunService.RenderStepped:Connect(function(dt)
 	if nowRunning ~= running then
 		running = nowRunning
 		runningSince = os.clock()
-		if running then
-			playSound("SpeedWhoosh", 1.1, 1)
+	end
+	-- silent treadmill: mute your own footsteps while you run on it (RbxCharacterSounds' "Running" sound)
+	local steps = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	steps = steps and steps:FindFirstChild("Running")
+	if steps and steps:IsA("Sound") then
+		if running and steps.Volume > 0 then
+			steps:SetAttribute("TreadmillVolume", steps.Volume)
+			steps.Volume = 0
+		elseif not running and steps:GetAttribute("TreadmillVolume") then
+			steps.Volume = steps:GetAttribute("TreadmillVolume")
+			steps:SetAttribute("TreadmillVolume", nil)
 		end
 	end
 	local character = player.Character
@@ -357,7 +376,7 @@ RunService.RenderStepped:Connect(function(dt)
 	updateLines(dt, running)
 	local tier, info = tierInfo()
 	setSparkles(running, tierColor(info, os.clock()))
-	rateLabel.Text = running and ("+" .. SpeedData.Commas(SpeedData.Gain(tier, player:GetAttribute("EquippedTrail"), (speedValue() or { Value = 0 }).Value)) .. "/s") or ""
+	rateLabel.Text = running and ("+" .. SpeedData.Commas(SpeedData.Gain(tier, player:GetAttribute("EquippedTrail"), (speedValue() or { Value = 0 }).Value, player:GetAttribute("StaminaGainMultiplier") or 1)) .. "/s") or ""
 end)
 
 ---------------------------------------------------------------- walk speed
@@ -366,11 +385,12 @@ task.spawn(function()
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		local value = speedValue()
-		if humanoid and humanoid.WalkSpeed ~= 0 then
+		if humanoid and not player:GetAttribute("WeaponShopOpen") and (humanoid.WalkSpeed ~= 0 or player:GetAttribute("Dragging")) then
 			local want = SpeedData.Walk(value and value.Value or 0, player:GetAttribute("EquippedTrail"))
 			if player:GetAttribute("TrainingLocal") then
 				want = math.max(want, math.min(want * TREADMILL_RUN, 100)) -- sprint on the belt (it scrolls just as fast)
 			end
+			want*=player:GetAttribute("DragSpeedMultiplier") or 1
 			if math.abs(humanoid.WalkSpeed - want) > 0.05 then
 				humanoid.WalkSpeed = want
 			end
@@ -386,44 +406,29 @@ event.OnClientEvent:Connect(function(kind, data)
 	if kind == "Gain" then
 		local _, info = tierInfo()
 		streak = (os.clock() - runningSince < 0.3) and 1 or (streak + 1)
-		local big = streak % 16 == 0 -- every 4 seconds of running
-		floatNumber(data.amount, big and YELLOW or tierColor(info, os.clock()), big)
-		if streak % 4 == 1 then -- a soft chime once a second, gently rising while you keep running
-			playSound("SpeedChime", 0.9 + (math.min(streak, 60) / 4 % 6) * 0.04, 0.7)
-		end
+		local big = false -- steady, quiet feedback without milestone celebrations
+		floatNumber(data.amount, big and YELLOW or tierColor(info, os.clock()), big) -- no sound: training is silent
 		local color = tierColor(info, os.clock())
 		rush(big and 14 or 5, big and YELLOW or color)
 		setGlow(big and YELLOW or color)
 		setCounter(data.total, true)
-		local before = data.total - data.amount
-		for _, m in ipairs(MILESTONES) do
-			if before < m and data.total >= m then
-				banner("⚡ " .. SpeedData.Commas(m) .. " STAMINA!", "You're getting stronger and faster!", CYAN)
-				confetti(45)
-				playSound("SpeedDing", 1, 1)
-			end
-		end
-		if big then
-			pop(counter, counterScale, 1.4)
-			confetti(14)
-			playSound("SpeedDing", 1.5, 0.5)
-		end
 	elseif kind == "Upgraded" then
 		local info = SpeedData.Treadmills[data.tier]
 		if info then
-			banner("TREADMILL UPGRADED!", string.format("%s  •  ⚡ +%s / sec", string.upper(info.name), SpeedData.Commas(SpeedData.Gain(data.tier, player:GetAttribute("EquippedTrail")))), info.rainbow and YELLOW or info.color)
+			banner("TREADMILL UPGRADED!", string.format("%s  •  ⚡ +%s / sec", string.upper(info.name), SpeedData.Commas(SpeedData.Gain(data.tier, player:GetAttribute("EquippedTrail"), (speedValue() or { Value = 0 }).Value, player:GetAttribute("StaminaGainMultiplier") or 1))), info.rainbow and YELLOW or info.color)
 			confetti(70)
 			playSound("SpeedUpgrade", 1, 1)
 		end
 	elseif kind == "Bought" then
 		local trail = SpeedData.Trail(data.id)
 		if trail then
-			banner(string.upper(trail.name) .. "!", string.format("+%d walk speed  •  x%s Stamina/sec", trail.walk, tostring(trail.gain)), SpeedData.TrailColors(trail)[1])
+			banner(string.upper(trail.name) .. "!", string.format("%gx Stamina", trail.gain), SpeedData.TrailColors(trail)[1])
 			confetti(60)
 			playSound("SpeedTrail", 1, 1)
 		end
 	elseif kind == "Notice" then
 		notice(data.text or "", Color3.fromRGB(255, 120, 120))
+        feedback.Error(data.text or "Please try again.")
 	end
 end)
 
@@ -432,7 +437,7 @@ task.spawn(function()
 	local value = player:WaitForChild("leaderstats"):WaitForChild("Stamina")
 	setCounter(value.Value, false)
 	value.Changed:Connect(function(v)
-		if v < shownSpeed then
+		if v ~= shownSpeed then
 			setCounter(v, false)
 		end
 	end)

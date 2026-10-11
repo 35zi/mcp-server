@@ -4,40 +4,48 @@
 --   Stamina    a leaderstat (shown as "Stamina"; the code still calls it Speed) that only goes up: treadmills add it every
 --              second while you run on them. Heavy animals need enough of it to be picked up (StaminaToCarry).
 --   Walk speed follows a saturating curve of Stamina (fast at the start, slower and slower later); see WalkBonus.
---   Trails     bought once in the trail shop (the blue stall + neon circle); the equipped one adds a little walk speed
---              and multiplies the Speed you gain per second.
+--   Trails     bought once in the trail shop (the blue stall + neon circle); the equipped one multiplies the Stamina you gain per second.
+--              Walking speed still increases naturally as your Stamina increases.
 --   Treadmills everyone starts on Basic; upgrades are per player, raise the Speed per second and swap the model.
 local SpeedData = {}
 
 SpeedData.BaseWalk = 16
-SpeedData.MaxWalk = 135 -- the ceiling the curve approaches (spawn to the far end wall in ~10 s)
-SpeedData.CurveHalf = 6000 -- Stamina at which you have half of the possible bonus
+SpeedData.MaxWalk = 125 -- a soft ceiling; late Stamina still adds smaller speed gains
+SpeedData.CurveHalf = 150000 -- half the bonus at this Stamina milestone
 
--- walk speed added by your Stamina: a saturating curve (fast gains at the start, slower and slower later):
--- 100 = +2, 300 = +6, 1K = +17 (x2 speed), 3K = +40, 10K = +74, 30K = +99, 100K = +112, never above MaxWalk
+-- Square-root saturation: 500 ~22, 2K ~27, 100K ~65, 1M ~95, 2M ~102.
+-- Diminishing returns keep late progression useful without runaway movement speed.
 function SpeedData.WalkBonus(speed)
-	speed = math.max(0, speed or 0)
-	local room = SpeedData.MaxWalk - SpeedData.BaseWalk
-	return room * speed / (speed + SpeedData.CurveHalf)
+ speed = math.max(0, tonumber(speed) or 0)
+ local progress = math.sqrt(speed)
+ local half = math.sqrt(SpeedData.CurveHalf)
+ return (SpeedData.MaxWalk-SpeedData.BaseWalk)*progress/(progress+half)
 end
 
 -- colors = the trail's color, front to back; rainbow = cycles through every colour
+-- Card1..Card8 follow the supplied artwork. Existing ownership IDs stay valid.
 SpeedData.Trails = {
-	{ id = "Blue", name = "Blue Trail", price = 10000, walk = 1, gain = 1.1, colors = { Color3.fromRGB(120, 215, 255), Color3.fromRGB(25, 110, 255) } },
-	{ id = "Toxic", name = "Toxic Trail", price = 50000, walk = 2, gain = 1.2, colors = { Color3.fromRGB(200, 255, 90), Color3.fromRGB(40, 200, 60) } },
-	{ id = "Galaxy", name = "Galaxy Trail", price = 150000, walk = 3, gain = 1.35, colors = { Color3.fromRGB(255, 120, 230), Color3.fromRGB(120, 60, 255), Color3.fromRGB(30, 20, 120) } },
-	{ id = "Fire", name = "Fire Trail", price = 500000, walk = 4, gain = 1.5, colors = { Color3.fromRGB(255, 240, 120), Color3.fromRGB(255, 140, 30), Color3.fromRGB(230, 40, 20) } },
-	{ id = "Golden", name = "Golden Trail", price = 2000000, walk = 5, gain = 1.75, colors = { Color3.fromRGB(255, 255, 210), Color3.fromRGB(255, 205, 50), Color3.fromRGB(210, 140, 20) } },
-	{ id = "Rainbow", name = "Rainbow Trail", price = 5000000, walk = 6, gain = 2, rainbow = true },
+ { id = "Cyan", name = "Cyan Trail", rarity = "Common", price = 200, walk = 0, gain = 1.5, colors = { Color3.fromRGB(105,245,255), Color3.fromRGB(20,185,205) } },
+ { id = "Toxic", productId = 3717891550, robuxPrice = 9, name = "Green Trail", rarity = "Uncommon", price = 6500, walk = 0, gain = 2, colors = { Color3.fromRGB(115,255,65), Color3.fromRGB(25,185,35) } },
+ { id = "Blue", productId = 3717891626, robuxPrice = 19, name = "Blue Trail", rarity = "Rare", price = 65000, walk = 0, gain = 3, colors = { Color3.fromRGB(105,175,255), Color3.fromRGB(25,75,245) } },
+ { id = "Golden", productId = 3717891726, robuxPrice = 39, name = "Gold Trail", rarity = "Epic", price = 650000, walk = 0, gain = 5, colors = { Color3.fromRGB(255,245,110), Color3.fromRGB(235,170,25) } },
+ { id = "Galaxy", productId = 3717891829, robuxPrice = 69, name = "Purple Trail", rarity = "Legendary", price = 6500000, walk = 0, gain = 8, colors = { Color3.fromRGB(220,120,255), Color3.fromRGB(125,35,235) } },
+ { id = "Fire", productId = 3717891884, robuxPrice = 99, name = "Red Trail", rarity = "Mythic", price = 65000000, walk = 0, gain = 12, colors = { Color3.fromRGB(255,100,90), Color3.fromRGB(205,25,35) } },
+ { id = "Grey", productId = 3717891941, robuxPrice = 149, name = "Grey Trail", rarity = "Secret", price = 350000000, walk = 0, gain = 20, colors = { Color3.fromRGB(225,230,240), Color3.fromRGB(110,120,135) } },
+ -- Rainbow is the legacy ownership key for the final slot; its new artwork and effect are black.
+ { id = "Rainbow", productId = 3717892043, robuxPrice = 249, name = "Black Trail", rarity = "Divine", price = 1000000000, walk = 0, gain = 30, colors = { Color3.fromRGB(95,95,115), Color3.fromRGB(15,15,25) } },
 }
 
-SpeedData.Treadmills = { -- each tier is its own treadmill model (TreadmillDesigns, made in Blender)
-	{ name = "Basic", price = 0, rate = 10, color = Color3.fromRGB(79, 195, 255) },
-	{ name = "Storm", price = 10000, rate = 30, color = Color3.fromRGB(89, 199, 255) },
-	{ name = "Ice", price = 50000, rate = 80, color = Color3.fromRGB(160, 249, 255) },
-	{ name = "Portal", price = 250000, rate = 200, color = Color3.fromRGB(143, 75, 255) },
-	{ name = "Volcano", price = 1000000, rate = 500, color = Color3.fromRGB(255, 138, 31) },
-	{ name = "Candy", price = 5000000, rate = 1200, rainbow = true, color = Color3.fromRGB(255, 90, 165) },
+-- color = the treadmill model's own main colour, one clearly different colour per tier (the floating "+N" lungs
+-- popup, screen glow, sparkles, upgrade banner and burst all use it)
+SpeedData.Treadmills = { -- V3 monument models: ReplicatedStorage.TreadmillModels.Tier1..Tier7
+	{ name = "Basic", price = 0, rate = 10, color = Color3.fromHex("B4C0CC") }, -- silver frame
+	{ name = "Twin Turbo", price = 10000, rate = 30, color = Color3.fromHex("2F8FFF") }, -- blue turbines
+	{ name = "Fusion Reactor", price = 50000, rate = 80, color = Color3.fromHex("A77BFF") }, -- purple reactor ring
+	{ name = "Dragon Inferno", price = 250000, rate = 200, color = Color3.fromHex("FF6A12") }, -- dragon fire orange
+	{ name = "Crystal Citadel", price = 1000000, rate = 500, color = Color3.fromHex("67EFFF") }, -- ice crystal cyan
+	{ name = "Royal Ascension", price = 5000000, rate = 1200, color = Color3.fromHex("FFC22E") }, -- royal gold
+	{ name = "Celestial Eternity", price = 25000000, rate = 3000, color = Color3.fromHex("FFF398") }, -- starlight white-gold
 }
 
 SpeedData.RainbowColors = {
@@ -64,6 +72,11 @@ function SpeedData.Trail(id)
 	return nil
 end
 
+function SpeedData.TrailProduct(productId)
+ for _,trail in ipairs(SpeedData.Trails) do if trail.productId==productId then return trail end end
+ return nil
+end
+
 function SpeedData.TrailColors(trail)
 	return trail.rainbow and SpeedData.RainbowColors or trail.colors
 end
@@ -80,12 +93,12 @@ function SpeedData.ColorSequence(colors)
 end
 
 -- Speed per second on a treadmill of this tier with this trail equipped
-function SpeedData.Gain(tier, trailId, stamina)
+function SpeedData.Gain(tier, trailId, stamina, shopMultiplier)
 	local t = SpeedData.Treadmills[tier] or SpeedData.Treadmills[1]
 	local trail = trailId and SpeedData.Trail(trailId)
 	-- beginner boost: x3 income at 0 Stamina, fading out to x1 at 5,000, so the first minutes feel fast
 	local boost = 1 + 2 * math.max(0, 1 - (stamina or 5000) / 5000)
-	return math.floor(t.rate * (trail and trail.gain or 1) * boost + 0.5)
+	return math.floor(t.rate * (trail and trail.gain or 1) * boost * (shopMultiplier or 1) + 0.5)
 end
 
 function SpeedData.Walk(speed, trailId)
