@@ -24,6 +24,7 @@ local CYAN = Color3.fromRGB(90, 230, 255)
 local YELLOW = Color3.fromRGB(255, 225, 70)
 local TREADMILL_RUN = 2.5 -- walk speed x this while you run on your treadmill
 local LUNGS_ICON = "rbxassetid://137679356827216" -- white lungs with a dark outline, tinted with the treadmill colour
+local LUNGS_FALLBACK = "💨" -- shown instead until the image has loaded (the 🫁 emoji itself does not render in Roblox)
 
 local function make(class, props, parent)
 	local x = Instance.new(class)
@@ -185,6 +186,29 @@ local function banner(title, subtitle, color)
 end
 
 ---------------------------------------------------------------- floating "+15 <lungs>" over your head
+-- the lungs image is checked in the background (retrying with a fresh URL, so a failed first fetch, e.g. while a new
+-- upload is still in review, is not cached forever); until then the popup uses LUNGS_FALLBACK
+local lungsUrl = nil
+task.spawn(function()
+	local ContentProvider = game:GetService("ContentProvider")
+	for try = 1, 40 do
+		local url = try == 1 and LUNGS_ICON or ("http://www.roblox.com/asset/?id=" .. LUNGS_ICON:match("%d+") .. "&try=" .. try)
+		local probe = Instance.new("ImageLabel")
+		probe.Image = url
+		local ok = false
+		pcall(function()
+			ContentProvider:PreloadAsync({ probe }, function(_, status)
+				ok = status == Enum.AssetFetchStatus.Success
+			end)
+		end)
+		probe:Destroy()
+		if ok then
+			lungsUrl = url
+			return
+		end
+		task.wait(30)
+	end
+end)
 local function floatNumber(amount, color, big)
 	local character = player.Character
 	local head = character and (character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart"))
@@ -199,8 +223,8 @@ local function floatNumber(amount, color, big)
 		Adornee = head,
 	}, player.PlayerGui) -- BillboardGuis do not draw inside a ScreenGui
 	local label = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, gui)
-	local text = outlined({ Size = UDim2.fromScale(0.66, 1), Text = "+" .. SpeedData.Commas(amount), TextColor3 = color, TextXAlignment = Enum.TextXAlignment.Right }, label, 2.5)
-	local icon = make("ImageLabel", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.fromScale(0.68, 0.5), Size = UDim2.fromScale(0.3, 1), BackgroundTransparency = 1, Image = LUNGS_ICON, ImageColor3 = color, ScaleType = Enum.ScaleType.Fit }, label)
+	local text = outlined({ Size = UDim2.fromScale(lungsUrl and 0.66 or 1, 1), Text = "+" .. SpeedData.Commas(amount) .. (lungsUrl and "" or (" " .. LUNGS_FALLBACK)), TextColor3 = color, TextXAlignment = lungsUrl and Enum.TextXAlignment.Right or Enum.TextXAlignment.Center }, label, 2.5)
+	local icon = make("ImageLabel", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.fromScale(0.68, 0.5), Size = UDim2.fromScale(0.3, 1), BackgroundTransparency = 1, Image = lungsUrl or "", ImageColor3 = color, ScaleType = Enum.ScaleType.Fit, Visible = lungsUrl ~= nil }, label)
 	local scale = make("UIScale", { Scale = 0.4 }, label)
 	TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 	TweenService:Create(gui, TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { StudsOffsetWorldSpace = gui.StudsOffsetWorldSpace + Vector3.new(0, 4.5, 0) }):Play()
