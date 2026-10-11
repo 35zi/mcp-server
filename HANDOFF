@@ -437,3 +437,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Checks: playtest with Python equipped: hud on, one red dot under the mouse, OS cursor hidden, no errors.
 - Branch: claude/red-dot-cursor
 - Status: done. Place not saved by me: save in Studio (Ctrl+S).
+
+## Claude — 2026-10-11 16:40 UTC
+- Task: owner's request — replace the Python revolver with the owner's new model (Downloads/python_revolver.obj, 135 named pieces). Studio can't upload meshes from scripts, so it is rebuilt from Parts/wedges and unioned per piece (unions persist in the place).
+- Files (claimed): ServerStorage.WeaponTools.Python, ServerStorage.WeaponModels.Python_Revolver, ReplicatedStorage.WeaponShopPreviews.Python, ReplicatedStorage.WeaponConfig (Python entry only).
+- Branch: claude/new-python
+- Status: in progress
