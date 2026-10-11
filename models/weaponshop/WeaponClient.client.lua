@@ -1,8 +1,8 @@
 -- WeaponClient (LocalScript in StarterPlayer.StarterPlayerScripts)
 --
 -- Everything the player sees and hears when using a weapon (any Tool with a WeaponId attribute):
---   * third person (default): a small precise aim dot sits exactly where the shot will land (red over an animal,
---     faded when the target is out of range); the mouse cursor is hidden while a weapon is out
+--   * third person (default): a small red aim dot (no ring) sits exactly where the shot will land (a little bigger
+--     over an animal, faded when the target is out of range); the mouse cursor is hidden while a weapon is out
 --   * hold RIGHT-CLICK (or L2): third person glides to an over-the-shoulder view; first person lines up the
 --     iron sights (or the scope overlay for scoped weapons); a viewmodel of the gun with blocky hands is drawn;
 --     Accuracy turns into a gentle sight sway (the AR has stable ADS); release to glide back out
@@ -24,6 +24,7 @@ local Debris = game:GetService("Debris")
 local player = Players.LocalPlayer
 local catalog = require(ReplicatedStorage:WaitForChild("WeaponShopCatalog"))
 local WeaponStats = require(ReplicatedStorage:WaitForChild("WeaponStats"))
+local HuntingRules=require(ReplicatedStorage:WaitForChild("HuntingRules"))
 local WeaponConfig = require(ReplicatedStorage:WaitForChild("WeaponConfig"))
 local combat = ReplicatedStorage:WaitForChild("WeaponCombat")
 local audio = ReplicatedStorage:WaitForChild("GameAudio")
@@ -59,14 +60,17 @@ local hud = make("ScreenGui", {
 	Parent = player:WaitForChild("PlayerGui"),
 })
 
--- aim dot: a small dot inside a thin ring
+-- aim point: just a small red dot (no ring); a thin dark edge keeps it visible on bright ground
 local reticle = make("Frame", { Name = "Reticle", AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(22, 22), BackgroundTransparency = 1, Parent = hud })
-local ring = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = reticle })
-make("UICorner", { CornerRadius = UDim.new(1, 0), Parent = ring })
-local ringStroke = make("UIStroke", { Color = WHITE, Thickness = 1.5, Transparency = 0.25, Parent = ring })
-local dot = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(6, 6), BackgroundColor3 = WHITE, Parent = reticle })
+local dot = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(7, 7), BackgroundColor3 = RED, Parent = reticle })
 make("UICorner", { CornerRadius = UDim.new(1, 0), Parent = dot })
-make("UIStroke", { Color = BLACK, Thickness = 1, Parent = dot })
+make("UIStroke", { Color = BLACK, Thickness = 1, Transparency = 0.3, Parent = dot })
+-- a little bigger over an animal, faded when out of range or reloading
+local function paintDot(onAnimal, outOfRange, cooling)
+	local size = onAnimal and 9 or 7
+	dot.Size = UDim2.fromOffset(size, size)
+	dot.BackgroundTransparency = outOfRange and 0.6 or cooling and 0.35 or 0
+end
 
 -- hit marker: four short diagonal lines around the aim point
 local hitMarker = make("Frame", { Name = "HitMarker", AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(34, 34), BackgroundTransparency = 1, Parent = hud })
@@ -266,6 +270,7 @@ end
 
 ---------------------------------------------------------------- state
 local current = nil -- the equipped weapon (see equip)
+local AimAssist = require(ReplicatedStorage:WaitForChild("AimAssist"))
 local aiming = false
 local alpha = 0 -- 0 = third person, 1 = fully aimed
 local camOwned = false
@@ -279,8 +284,10 @@ local hiddenState = false
 -- the shop view or an animal menu (Index / Inventory) is open: the weapon steps aside and the cursor shows
 local function shopOpen()
 	local gui = player.PlayerGui:FindFirstChild("WeaponShopUI")
+	local trails = player.PlayerGui:FindFirstChild("TrailShop")
 	local menu = player.PlayerGui:FindFirstChild("GameUI")
-	return (gui ~= nil and gui.Enabled) or (menu ~= nil and menu:GetAttribute("Open") == true) or GuiService.MenuIsOpen
+	local inventory=player.PlayerGui:FindFirstChild("AnimalInventoryUI")
+	return player:GetAttribute("WeaponShopOpen")==true or (gui ~= nil and gui.Enabled) or (trails ~= nil and trails.Enabled) or (menu ~= nil and menu:GetAttribute("Open") == true) or (inventory and inventory:GetAttribute("Open")==true) or GuiService.MenuIsOpen
 end
 
 local function isAnimal(instance)
@@ -400,7 +407,7 @@ local function setViewmodelVisible(vm, visible)
 end
 
 ---------------------------------------------------------------- equip / camera
-local function releaseCamera(restore)
+local function releaseCamera(restore, preserveView)
 	if not camOwned then
 		return
 	end
@@ -417,14 +424,15 @@ local function releaseCamera(restore)
 	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	setCharacterHidden(false)
 	if restore then
-		if head then
+		if head and not preserveView then
 			-- hand the camera back exactly where third person expects it, so there is no snap
 			local rootPart=character:FindFirstChild("HumanoidRootPart")
 			local eye = rootPart and rootPart.Position+saved.eyeOffset or head.Position+Vector3.new(0,0.15,0)
 			camera.CFrame = CFrame.new(eye) * CFrame.fromOrientation(pitch, yaw, 0) * CFrame.new(0, 0, saved.dist)
 		end
 		camera.FieldOfView = saved.fov
-		camera.CameraType = Enum.CameraType.Custom
+		camera.CameraSubject = saved.subject or humanoid
+		camera.CameraType = saved.cameraType or Enum.CameraType.Custom
 	end
 	if current and current.vm then
 		setViewmodelVisible(current.vm, false)
@@ -442,6 +450,8 @@ local function takeCamera()
 	end
 	saved = {
 		fov = camera.FieldOfView,
+		cameraType = camera.CameraType,
+		subject = camera.CameraSubject,
 		dist = math.clamp((camera.CFrame.Position - head.Position).Magnitude, 0.5, 60),
 		autoRotate = humanoid.AutoRotate,
 		eyeOffset = head.Position - character.HumanoidRootPart.Position + Vector3.new(0,0.15,0),
@@ -492,6 +502,8 @@ local function fire()
 	if not humanoid or humanoid.Health <= 0 then
 		return
 	end
+	local root=character:FindFirstChild("HumanoidRootPart")
+	if not root or not HuntingRules.CanFire(root.Position) then return end
 	local now = os.clock()
 	if now - c.lastShot < c.stats.Cooldown then
 		return
@@ -595,18 +607,17 @@ local function onRender(dt)
 	local now = os.clock()
 	-- Recover even when release occurred outside Studio/game focus or UI swallowed it.
 	if aiming and aimInput=="Mouse" and not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then aiming=false aimInput=nil end
-	if not windowFocused then
+	-- Give mouse and character rotation back on the release frame.
+ if camOwned and not aiming then alpha=0;releaseCamera(true) end
+ if not windowFocused then
 		c.triggerHeld=false aiming=false alpha=0 releaseCamera(true)
 		UserInputService.MouseIconEnabled=true
 		return
 	end
 
 	if shopOpen() then
-		-- the shop owns the camera: step aside without touching it
-		if camOwned then
-			local weaponShop=player.PlayerGui:FindFirstChild("WeaponShopUI")
-			releaseCamera(not (weaponShop and weaponShop.Enabled))
-		end
+		-- Menus keep the normal camera; release ADS ownership without repositioning the view.
+		if camOwned then releaseCamera(true, true) end
 		aiming, alpha, aimInput = false, 0, nil
 		c.triggerHeld=false
 		UserInputService.MouseBehavior=Enum.MouseBehavior.Default
@@ -648,7 +659,13 @@ local function onRender(dt)
 			yaw -= gamepadLook.X * dt * 2.6 * (1 - 0.5 * e)
 			pitch = math.clamp(pitch + gamepadLook.Y * dt * 2.0 * (1 - 0.5 * e), -1.35, 1.35)
 		end
-		root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, yaw, 0)
+
+        -- Assistance ends immediately on ADS release, even while the camera eases out.
+        if aiming and alpha > .6 then
+            local aimTarget = AimAssist.Find(camera.CFrame.Position, camera.CFrame.LookVector, c.stats.Range, workspace:FindFirstChild("Animals"), {character, camera})
+            yaw, pitch = AimAssist.Step(yaw, pitch, camera.CFrame, aimTarget, dt, delta.Magnitude + gamepadLook.Magnitude*10)
+        end
+        root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, yaw, 0)
 
 		local eye = root.Position + saved.eyeOffset
 		local amp = c.cfg.StableADS and 0 or math.rad(c.stats.AdsSway) * e
@@ -682,7 +699,8 @@ local function onRender(dt)
 		setViewmodelVisible(c.vm, showVm)
 		if showVm then
 			local hammerCF, cylinderCF, slideCF = cycleTransforms(c, now)
-			local cfs = table.create(#c.vm.parts)
+			local cfs = c.vm.cframes
+			if not cfs then cfs=table.create(#c.vm.parts) c.vm.cframes=cfs end
 			for i, part in ipairs(c.vm.parts) do
 				local group = c.vm.group[part]
 				local extra = group == "hammer" and hammerCF or group == "cylinder" and cylinderCF or group == "slide" and slideCF or CFrame.identity
@@ -697,9 +715,7 @@ local function onRender(dt)
 		if reticle.Visible then
 			local landing,hit,_,outOfRange=thirdPersonAim(true)
 			reticle.Visible=true reticle.Position=UDim2.fromScale(0.5,0.5)
-			dot.BackgroundColor3=isAnimal(hit) and RED or WHITE ringStroke.Color=dot.BackgroundColor3
-			ringStroke.Transparency=(outOfRange or cooling) and .7 or .25
-			dot.BackgroundTransparency=outOfRange and .6 or 0
+			paintDot(isAnimal(hit), outOfRange, cooling)
 		end
 		scope.Visible = scoped
 		if scoped then
@@ -724,11 +740,7 @@ local function onRender(dt)
 		local mouse=UserInputService:GetMouseLocation()
 		reticle.Visible = true
 		reticle.Position = UDim2.fromOffset(mouse.X, mouse.Y)
-		local color = isAnimal(hit) and RED or WHITE
-		dot.BackgroundColor3 = color
-		ringStroke.Color = color
-		ringStroke.Transparency = (outOfRange or cooling) and 0.7 or 0.25
-		dot.BackgroundTransparency = outOfRange and 0.6 or 0
+		paintDot(isAnimal(hit), outOfRange, cooling)
 		-- third-person kick: nudge the gun in the hand
 		c.tool.Grip = CFrame.new(0, 0, -0.2 * kick * kickStrength) * CFrame.Angles(-math.rad(10 * kick * kickStrength), 0, 0)
 	end
@@ -824,7 +836,9 @@ end)
 UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton2 or input.KeyCode == Enum.KeyCode.ButtonL2 then
 		aiming = false aimInput=nil
-	end
+  alpha=0
+  releaseCamera(true)
+ end
 end)
 UserInputService.WindowFocusReleased:Connect(function()
 	windowFocused=false aiming=false alpha=0 aimInput=nil gamepadLook=Vector2.zero

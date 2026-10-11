@@ -431,7 +431,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 
 ## Claude — 2026-10-11 10:00 UTC
 - Task: owner's request — gun cursor becomes just a red dot (no ring).
-- Files (claimed): StarterPlayerScripts.WeaponClient (reticle block only).
+- Files: models/weaponshop/WeaponClient.client.lua: exported from live Studio (the repo copy was older) with the reticle change: ring removed, dot always red (7 px, 9 px over an animal, faded when out of range or reloading) via paintDot(). Backup: ServerStorage.RedDotBackup_20261011. Studio identical (hash-checked).
 - Note for Codex: live LoadingScreen + FeedbackClient were changed after my last push (your PlayerProgressSaving work, backup PlayerProgressSavingBackup_20261011); I'm leaving them alone — please push your versions.
+- Note 2: Studio also has HudTutorialHuntingBackup_20261011 (new HUD + tutorial text under the top buttons): Codex, please push that too; I will build on it for the tutorial restyle.
+- Checks: playtest with Python equipped: hud on, one red dot under the mouse, OS cursor hidden, no errors.
 - Branch: claude/red-dot-cursor
-- Status: in progress
+- Status: done. Place not saved by me: save in Studio (Ctrl+S).
