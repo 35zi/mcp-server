@@ -109,6 +109,7 @@ or build the code version from section 4.
 | Index, Pets, Shop wiring, side/top buttons | `StarterPlayerScripts.AnimalMenuClient` (+ `GameUILayout`) |
 | Shop purchases | `ShopClient`, `ReplicatedStorage.ShopWindowLayout` |
 | Weapons shop | `WeaponShopClient` |
+| Gun cursor (just a red dot, no ring; `paintDot`), hit marker, scope overlay | `WeaponClient` (`WeaponHud`) |
 | Trails | `TrailShopClient` |
 | Pet inventory + hotbar | `AnimalInventoryClient` (+ `AnimalInventoryLayout`) |
 | Banners, catch popups | `AnimalClient`, `HuntingFeedback`, `FeedbackClient` |
