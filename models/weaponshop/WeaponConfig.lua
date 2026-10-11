@@ -20,7 +20,11 @@
 --     EyeLift     raises only the eye, so the gun body sits lower under the sights
 --     EyeBack     moves the eye back along the line of sight, so the rear sight looks smaller
 return {
-	Python = { Fov = 50, Kick = 1.0, Pitch = 1.05, Volume = 0.9, Cycle = "hammer", EyeBack = 1.6 },
+	-- the owner's python_revolver.obj (2026-10-11): the hammer drops and the cylinder turns on every shot
+	Python = {
+		Fov = 50, Kick = 1.0, Pitch = 1.05, Volume = 0.9, Cycle = "hammer", EyeBack = 1.6,
+		Hammer = "^Python_Hammer$", Cylinder = "^Python_Cylinder$",
+	},
 	Revolver = {
 		Fov = 50, Kick = 1.0, Pitch = 1.0, Volume = 0.9, Cycle = "hammer", EyeBack = 1.0,
 		Hammer = "^Revolver_Hammer$", Cylinder = "^Revolver_Cylinder$",
@@ -38,4 +42,13 @@ return {
 		Fov = 16, Kick = 1.4, Pitch = 0.72, Volume = 1.0, Scope = true, Cycle = "bolt",
 		Slide = "^BoltSniper_Bolt_Handle", SlideAmount = 0.35,
 	},
+
+	ScoutCarbine={Fov=50,Kick=.55,Pitch=1.2,Volume=.75,Automatic=true,Cycle="charge",
+	 Slide="^ScoutCarbine_Charging_Handle$",SlideAmount=.16,EyeBack=1.6,StableADS=true},
+	GoldenScout={Fov=50,Kick=.55,Pitch=1.2,Volume=.75,Automatic=true,Cycle="charge",
+	 Slide="^GoldenScout_Charging_Handle$",SlideAmount=.16,EyeBack=1.6,StableADS=true},
+	RangerRifle={Fov=32,Kick=.85,Pitch=.95,Volume=.85,Scope=true,Cycle="charge",
+	 Slide="^RangerRifle_Charging_Handle$",SlideAmount=.20,StableADS=true},
+	HeavyRepeater={Fov=52,Kick=1.1,Pitch=.85,Volume=.95,Automatic=true,Cycle="charge",
+	 Slide="^HeavyRepeater_Charging_Handle$",SlideAmount=.22,EyeBack=1.8},
 }

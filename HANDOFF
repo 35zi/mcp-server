@@ -440,6 +440,7 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 
 ## Claude — 2026-10-11 16:40 UTC
 - Task: owner's request — replace the Python revolver with the owner's new model (Downloads/python_revolver.obj, 135 named pieces). Studio can't upload meshes from scripts, so it is rebuilt from Parts/wedges and unioned per piece (unions persist in the place).
-- Files (claimed): ServerStorage.WeaponTools.Python, ServerStorage.WeaponModels.Python_Revolver, ReplicatedStorage.WeaponShopPreviews.Python, ReplicatedStorage.WeaponConfig (Python entry only).
+- Files: Studio ServerStorage.WeaponTools.Python (104 parts welded to a Handle at the grip), ServerStorage.WeaponModels.Python_Revolver, ReplicatedStorage.WeaponShopPreviews.Python, ReplicatedStorage.WeaponConfig (Python: Hammer=^Python_Hammer$, Cylinder=^Python_Cylinder$). Old single-mesh Python in ServerStorage.PythonBackup_20261011. Repo: models/weaponshop/python/ (obj, recreated mtl, PythonBuildData.lua, README with the method), models/weaponshop/WeaponConfig.lua (live version; the repo copy was older).
+- Checks: playtest: Python equipped and held at the grip, over-the-shoulder ADS with the red dot centred, MuzzleAttachment 0.07 studs from the barrel tip, shop preview shows the new gun, no errors. Hammer/cylinder animation is first-person only (viewmodel) and was not seen firing (base area blocks shooting).
 - Branch: claude/new-python
-- Status: in progress
+- Status: done. Place not saved by me: save in Studio (Ctrl+S).
