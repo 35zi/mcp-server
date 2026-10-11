@@ -128,8 +128,11 @@ or build the code version from section 4.
 - **Screen coordinates**: `AbsolutePosition` is measured from below the Roblox top bar. To place
   something in another ScreenGui, subtract that gui's own `AbsolutePosition`, and use
   `IgnoreGuiInset = true` + `ScreenInsets = DeviceSafeInsets` like GameUI.
-- **Tutorial** (`TutorialClient`): while a GameUI window or the inventory is open, the step card
-  sits at the bottom edge and the world label/arrow/marker hide.
+- **Tutorial** (`TutorialClient`, Codex's minimal version: one outlined instruction under the top buttons, a button
+  spotlight or a world beam): a red 3D **SKIP TUTORIAL** button (`TutorialUI.SkipTutorial`, toggle style) sits under
+  the Music/SFX/VFX toggles; first tap turns it gold "TAP AGAIN" for 3 s, the second fires `TutorialRemote` "Skip"
+  (TutorialService finishes + saves). Hidden in shops/menus. `UIMotion.BindButton` re-centres a button's AnchorPoint,
+  so position bound buttons by their anchor.
 - **Audio toggles** (`FeedbackClient`): 3D buttons with icon + name + state; green ON, red OFF,
   gold LOW. Emoji that render in Gotham: 🎵 🔔 ✨ (🔊 does not).
 - `UIStyle` now uses Gotham Black and outline `08141c`, so the older helpers match the artwork.
