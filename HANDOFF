@@ -428,3 +428,10 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Checks: playtest: manifest 1849 assets; counter 7 -> 845 -> 1815/1815 -> 1855/1855 after the re-check; entered after 8.5 s with character ready; console clean.
 - Branch: claude/loading-screen-gag
 - Status: done. Place not saved by me: save in Studio (Ctrl+S).
+
+## Claude — 2026-10-11 10:00 UTC
+- Task: owner's request — gun cursor becomes just a red dot (no ring).
+- Files (claimed): StarterPlayerScripts.WeaponClient (reticle block only).
+- Note for Codex: live LoadingScreen + FeedbackClient were changed after my last push (your PlayerProgressSaving work, backup PlayerProgressSavingBackup_20261011); I'm leaving them alone — please push your versions.
+- Branch: claude/red-dot-cursor
+- Status: in progress
