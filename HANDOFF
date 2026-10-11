@@ -452,3 +452,9 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Checks: playtest: 34 of 36 animals far -> ~7 updates/s instead of 60, still wandering; near ones smooth; no errors. Studio playtest FPS (~24) is capped by Studio itself (server heartbeat 0.6 ms) so it can not show the gain; real gain is on players at max graphics (shadows + replication).
 - Branch: claude/performance
 - Status: done. Place not saved by me: save in Studio (Ctrl+S).
+
+## Claude — 2026-10-11 18:10 UTC
+- Task: owner's request — realistic gun holding (both hands on the gun, two-bone arm IK) and an upper-body run pose while holding a gun; others see where you aim.
+- Files (claimed, all new): StarterPlayerScripts.GunHoldClient, ServerScriptService.GunPoseService, ReplicatedStorage.GunPose (RemoteEvent). WeaponClient is not changed (it still owns camera, viewmodel, kick).
+- Branch: claude/gun-hold
+- Status: in progress
