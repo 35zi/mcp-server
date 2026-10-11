@@ -455,6 +455,8 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 
 ## Claude — 2026-10-11 18:10 UTC
 - Task: owner's request — realistic gun holding (both hands on the gun, two-bone arm IK) and an upper-body run pose while holding a gun; others see where you aim.
-- Files (claimed, all new): StarterPlayerScripts.GunHoldClient, ServerScriptService.GunPoseService, ReplicatedStorage.GunPose (RemoteEvent). WeaponClient is not changed (it still owns camera, viewmodel, kick).
+- Files (all new): models/weaponshop/GunHoldClient.client.lua (StarterPlayerScripts.GunHoldClient), models/weaponshop/GunPoseService.server.lua (ServerScriptService.GunPoseService), ReplicatedStorage.GunPose (RemoteEvent). WeaponClient is not changed (it still owns camera, viewmodel, kick).
+- How: every frame (PreSimulation) GunHoldClient sets the R15 joint Transforms of every player holding a weapon Tool: waist lean/twist, two-bone IK for both arms (right hand on the grip via tool.Grip, left hand cupping it on pistols or on the handguard = SupportPos on long guns). Long gun = SupportPos.Z < -0.6 (rifles, shotgun, sniper); Python/Revolver are pistols. Poses: ready (pistol low-ready / rifle stock in the shoulder), aim (right mouse or within 0.7 s of a shot: gun to the eye line pointing at the aim), run (lean forward, gun carried low across the body, step bob). Owner sends aim to GunPoseService (rate limited, validated) -> character attributes GunAim/GunPitch/GunYaw so others see it. Skipped while dead, carrying an animal (Dragging) or ragdolled.
+- Checks: playtest Python: low-ready, aim, run; AutomaticRifle: shoulder ready, aim (GunAim replicated true), run carry; unequip returns arms to the normal animation. No errors in the console.
 - Branch: claude/gun-hold
-- Status: in progress
+- Status: done. Place not saved by me: save in Studio (Ctrl+S).
