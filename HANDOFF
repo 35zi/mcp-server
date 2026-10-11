@@ -469,3 +469,12 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 - Checks: playtest on Plot1's treadmill: TrainingLocal true, footstep volume 0 (restores 0.65), no new Sound instances for 3 s of running (only LobbyMusic plays); popups "+13 💨" silver B4C0CC on Basic, real UpgradeTreadmill ($10K) -> "TREADMILL UPGRADED! TWIN TURBO" banner in blue and popups "+40 💨" blue 2F8FFF. Repo files hash-identical to Studio.
 - Branch: claude/treadmill-quiet
 - Status: done. Place not saved by me: save in Studio (Ctrl+S).
+
+## Claude — 2026-10-11 17:30 UTC
+- Task: owner's request — a Skip Tutorial button, and animals closer to the spawn.
+- Skip: StarterPlayerScripts.TutorialClient (live = Codex's minimal tutorial; the repo copy was older and is now the live version + this) builds TutorialUI.SkipTutorial: red 3D button in the Music/SFX/VFX toggle style, right under the toggles (follows their phone/portrait positions). First tap -> gold "TAP AGAIN" for 3 s, second tap -> TutorialRemote "Skip" (TutorialService already had it: TutorialComplete + save). Hidden in shops, menus, loading and once done. TutorialUI (DisplayOrder 100) stays above the button-spotlight dim. Server untouched.
+- Animals: ServerScriptService.AnimalManager (repo copy synced to live first: Codex's SkinSpecies lines) — new homeBox/insideHome: each AnimalSpawnZones part has a home area at the end nearest SpawnLocation, HOME_DEPTH 0.4 of the depth x HOME_WIDTH 0.6 of the width (zone attributes HomeDepth/HomeWidth override, read live). Spawning (randomPoint), wandering targets and the "walk back home" check use it; chasing (pickTarget/chaseStep) still uses the whole zone. Zones themselves unchanged.
+- Docs: docs/claude/UI_STYLE.md + ANIMALS.md (skip button, UIMotion anchor note, home area).
+- Checks: playtest — forest animals at z -117..-210, |x| <= 79 (were up to -420 / ±150), desert -445..-578, every world near its spawn-side edge; Skip button under the toggles, 1st click gold TAP AGAIN, 2nd click -> TutorialStep 0, TutorialComplete true, card/beam/button gone; console clean. Repo files hash-identical to Studio.
+- Branch: claude/skip-tutorial-near-animals (from claude/treadmill-quiet)
+- Status: done. Place not saved by me: save in Studio (Ctrl+S).

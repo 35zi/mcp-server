@@ -42,6 +42,8 @@ local WAVE_INTERVAL = 300 -- seconds (5 minutes)
 local MAX_AGE_WAVES = 2 -- an animal is replaced after surviving this many waves
 local MIN_SPACING = 7 -- studs between spawned animals
 local ZONE_MARGIN = 3 -- keep animals this far inside a zone's edges
+local HOME_DEPTH = 0.4 -- animals live in this part of a zone's depth, at the end nearest the spawn (zone attribute HomeDepth)
+local HOME_WIDTH = 0.6 -- ...and this part of its width, around the middle (zone attribute HomeWidth)
 
 local SPECIES = AnimalData.Species
 local MUTATIONS = {
@@ -120,9 +122,26 @@ local function insideZone(zone, position)
 	return math.abs(p.X) <= hx and math.abs(p.Z) <= hz
 end
 
-local function randomPoint(zone)
+-- the part of a zone its animals spawn and wander in: the end nearest the SpawnLocation, so animals are close to where
+-- players come from. Local-space centre + half sizes. Chasers (Yeti...) may still follow a player through the whole zone.
+local function homeBox(zone)
 	local hx, hz = zoneBounds(zone)
-	local world = zone.CFrame:PointToWorldSpace(Vector3.new(rng:NextNumber(-hx, hx), 0, rng:NextNumber(-hz, hz)))
+	local spawn = workspace:FindFirstChild("SpawnLocation")
+	local towards = zone.CFrame:PointToObjectSpace(spawn and spawn.Position or Vector3.zero)
+	local depth = hz * math.clamp(zone:GetAttribute("HomeDepth") or HOME_DEPTH, 0.05, 1)
+	local width = hx * math.clamp(zone:GetAttribute("HomeWidth") or HOME_WIDTH, 0.05, 1)
+	return Vector3.new(0, 0, (towards.Z >= 0 and 1 or -1) * (hz - depth)), width, depth
+end
+
+local function insideHome(zone, position)
+	local center, hx, hz = homeBox(zone)
+	local p = zone.CFrame:PointToObjectSpace(position) - center
+	return math.abs(p.X) <= hx and math.abs(p.Z) <= hz
+end
+
+local function randomPoint(zone)
+	local center, hx, hz = homeBox(zone)
+	local world = zone.CFrame:PointToWorldSpace(center + Vector3.new(rng:NextNumber(-hx, hx), 0, rng:NextNumber(-hz, hz)))
 	local top = zone.Position.Y + zone.Size.Y / 2 + 20
 	local y = groundAt(world.X, world.Z, top)
 	if not y or nearDecor(Vector3.new(world.X, y, world.Z), 4) then
@@ -199,7 +218,7 @@ local function applyMutationLook(model, mutation)
 			-- keep eyes, pupils and catch-lights readable
 			if brightness > 0.12 and brightness < 0.97 then
 				part.Color = c:Lerp(m.tint, m.tintAmount)
-				part.Material = Enum.Material.SmoothPlastic
+				if not model:GetAttribute("SkinSpecies") then part.Material = Enum.Material.SmoothPlastic end
 				part.Reflectance = m.reflectance
 			end
 		end
@@ -267,6 +286,10 @@ function AnimalManager.BuildModel(species, weight, mutation)
 		-- relative to the template's own scale (imported meshes are stored at e.g. 0.017, not 1)
 		model:ScaleTo(model:GetScale() * size.scale)
 	end
+	if model:GetAttribute("SkinSpecies") then
+	 local _,_,bounds=AnimalManager.RootOffsets(model)
+	 model:SetAttribute("DisplayHeightStuds",bounds.Y)
+	end
 	applyMutationLook(model, mutation or "None")
 	model.Name = species
 	model:SetAttribute("WeightKg",size.weight)
@@ -296,10 +319,13 @@ function AnimalManager.RootOffsets(model)
 	for _, d in ipairs(model:GetDescendants()) do
 		if d:IsA("BasePart") then
 			table.insert(parts, d)
+			-- Invisible FBX root remains in offsets, but not in visual size or ground bounds.
+			if not (model:GetAttribute("SkinSpecies") and d==model.PrimaryPart) then
 			for _, c in ipairs(CORNERS) do
 				local p = frame:PointToObjectSpace(d.CFrame * (c * d.Size))
 				low = low:Min(p)
 				high = high:Max(p)
+			end
 			end
 		end
 	end
@@ -465,11 +491,11 @@ end
 local function startWander(record, awayFrom)
 	local cfg = record.cfg
 	local scale = record.size.scale
-	if not insideZone(record.zone, record.pos) then
-		-- outside its home (it woke up where it was dropped): hop straight back into its zone
-		local p = record.zone.CFrame:PointToObjectSpace(record.pos)
-		local hx, hz = zoneBounds(record.zone)
-		local inside = record.zone.CFrame:PointToWorldSpace(Vector3.new(math.clamp(p.X, -hx + 2, hx - 2), 0, math.clamp(p.Z, -hz + 2, hz - 2)))
+	if not insideHome(record.zone, record.pos) then
+		-- outside its home (it woke up where it was dropped, fled or chased someone): hop straight back into it
+		local center, hx, hz = homeBox(record.zone)
+		local p = record.zone.CFrame:PointToObjectSpace(record.pos) - center
+		local inside = record.zone.CFrame:PointToWorldSpace(center + Vector3.new(math.clamp(p.X, -hx + 2, hx - 2), 0, math.clamp(p.Z, -hz + 2, hz - 2)))
 		local delta = Vector3.new(inside.X - record.pos.X, 0, inside.Z - record.pos.Z)
 		record.hopsLeft = math.max(1, math.ceil(delta.Magnitude / (cfg.hopDist * scale)))
 		record.step = delta / record.hopsLeft
@@ -490,7 +516,7 @@ local function startWander(record, awayFrom)
 			dist = rng:NextNumber(5, 14) * scale
 		end
 		local target = record.pos + Vector3.new(math.cos(ang), 0, math.sin(ang)) * dist
-		if insideZone(record.zone, target) and pathClear(record.pos, target, 0.8 * scale) then
+		if insideHome(record.zone, target) and pathClear(record.pos, target, 0.8 * scale) then
 			local delta = target - record.pos
 			local hopDist = cfg.hopDist * scale
 			record.hopsLeft = math.max(1, math.ceil(delta.Magnitude / hopDist))

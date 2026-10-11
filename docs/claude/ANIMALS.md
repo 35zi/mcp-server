@@ -128,4 +128,8 @@ bit taller than the big animals.
 - Performance (2026-10-11): in templates only the body (PrimaryPart) casts a shadow; turn `CastShadow` off on
   every other part of a new animal (tagged `ShadowOffForPerf`). AnimalManager steps animals more than 220 studs
   from every player at 8 Hz, and AnimalAnimationClient already animates far animals less often.
+- Where animals live (2026-10-11): each `AnimalSpawnZones` part has a "home area" at the end nearest the
+  `SpawnLocation` (AnimalManager `homeBox`: 40% of the depth, 60% of the width; zone attributes `HomeDepth` /
+  `HomeWidth` override). Animals spawn and wander only there (Forest ~90-225 studs from spawn); chasers can follow a
+  player through the whole zone, then walk home.
 - Back up before big changes into `ServerStorage.<Name>Backup_<date>` (the project's habit).
