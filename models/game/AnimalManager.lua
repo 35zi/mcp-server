@@ -6,7 +6,7 @@
 --   Animals:     ReplicatedStorage.AnimalData (which world each species lives in, rarity, stats)
 --   Templates:   ServerStorage.AnimalTemplates.<Species>  (Models, PrimaryPart = Body / <Species>_Body, front = -Z)
 --   Spawn zones: every Part in Workspace.AnimalSpawnZones (invisible boxes; move/resize them in Studio).
---                Attribute World = which world's animals spawn there (default 1); Population = most alive at once (default 5)
+--                World = biome ID; MinPopulation = 5; Population = 8 (weighted bonus targets).
 --   Decor:       Workspace.Decor (trees, rocks...): animals spawn away from it, walk around it, never stand on it
 --   Live:        Workspace.Animals (Models with attributes Species, Rarity, World, WeightKg, Mutation, Health, MaxHealth,
 --                Hop, Land)
@@ -29,6 +29,9 @@ local ServerStorage = game:GetService("ServerStorage")
 
 local AnimalData = require(ReplicatedStorage:WaitForChild("AnimalData"))
 local AnimalRig = require(ReplicatedStorage:WaitForChild("AnimalRig"))
+local SpawnPolicy = require(ReplicatedStorage:WaitForChild("AnimalSpawnPolicy"))
+local HuntingRules = require(ReplicatedStorage:WaitForChild("HuntingRules"))
+local Awareness = require(ReplicatedStorage:WaitForChild("AnimalAwareness"))
 local AnimalCarry = require(script.Parent:WaitForChild("AnimalCarry"))
 local PlayerKnockback = require(script.Parent:WaitForChild("PlayerKnockback"))
 
@@ -36,8 +39,6 @@ local AnimalManager = {}
 
 ---------------------------------------------------------------- tuning
 local WAVE_INTERVAL = 300 -- seconds (5 minutes)
-local DEFAULT_POPULATION = 5 -- most animals alive per zone (= per world) (zone attribute Population overrides)
-local DEFAULT_MIN_POPULATION = 2 -- each wave picks a random target between this (zone attribute MinPopulation) and the max
 local MAX_AGE_WAVES = 2 -- an animal is replaced after surviving this many waves
 local MIN_SPACING = 7 -- studs between spawned animals
 local ZONE_MARGIN = 3 -- keep animals this far inside a zone's edges
@@ -146,12 +147,14 @@ local function pickWeighted(list, weightOf)
 end
 
 -- a species from this world, picked by rarity (only species that have a template)
-local function rollSpecies(worldId)
+local function rollSpecies(worldId, nonCommon)
 	local available = {}
+	local weights = AnimalData.Rarities
 	for _, world in ipairs(AnimalData.Worlds) do
 		if world.id == worldId then
+			if world.spawnWeights then weights=world.spawnWeights end
 			for _, name in ipairs(world.species) do
-				if SPECIES[name] and templates:FindFirstChild(name) then
+				if SPECIES[name] and templates:FindFirstChild(name) and (not nonCommon or SPECIES[name].rarity ~= 'Common') then
 					table.insert(available, name)
 				end
 			end
@@ -168,7 +171,8 @@ local function rollSpecies(worldId)
 	end
 	return pickWeighted(available, function(name)
 		local r = SPECIES[name].rarity
-		return AnimalData.Rarities[r].weight / tierCount[r]
+		local configured=weights[r]
+		return (type(configured)=="number" and configured or configured.weight) / tierCount[r]
 	end)
 end
 
@@ -225,96 +229,12 @@ local function applyMutationLook(model, mutation)
 	end
 end
 
+-- Cards are rendered locally from the same replicated health for proximity and hits.
 local function makeTag(record)
-	local body = record.model.PrimaryPart
-	local gui = Instance.new("BillboardGui")
-	gui.Name = "AnimalTag"
-	gui.Adornee = body
-	gui.Size = UDim2.fromOffset(140, 64)
-	gui.StudsOffsetWorldSpace = Vector3.new(0, record.height * 0.75 + 1.4, 0)
-	gui.MaxDistance = 140
-	gui.LightInfluence = 0
-	gui.Parent = body
-
-	local list = Instance.new("UIListLayout")
-	list.VerticalAlignment = Enum.VerticalAlignment.Bottom
-	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	list.Parent = gui
-
-	-- (the rarity is deliberately NOT shown over animals - you find out when you catch them)
-	if record.mutation ~= "None" then
-		local l = Instance.new("TextLabel")
-		l.Name = "Mutation"
-		l.LayoutOrder = 2
-		l.Size = UDim2.new(1, 0, 0, 24)
-		l.BackgroundTransparency = 1
-		l.Text = string.upper(record.mutation)
-		l.Font = Enum.Font.FredokaOne
-		l.TextScaled = true
-		l.TextColor3 = MUTATIONS[record.mutation].tint
-		l.Parent = gui
-		local stroke = Instance.new("UIStroke")
-		stroke.Thickness = 2.5
-		stroke.Color = Color3.fromRGB(24, 18, 28)
-		stroke.Parent = l
-	end
-
-	local slot = Instance.new("Frame")
-	slot.Name = "HealthSlot"
-	slot.LayoutOrder = 3
-	slot.Size = UDim2.new(1, 0, 0, 14)
-	slot.BackgroundTransparency = 1
-	slot.Parent = gui
-	local bar = Instance.new("Frame")
-	bar.Name = "HealthBar"
-	bar.AnchorPoint = Vector2.new(0.5, 1)
-	bar.Position = UDim2.new(0.5, 0, 1, 0)
-	bar.Size = UDim2.fromOffset(92, 12)
-	bar.BackgroundColor3 = Color3.fromRGB(40, 34, 46)
-	bar.BorderSizePixel = 0
-	bar.Visible = false
-	bar.Parent = slot
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(1, 0)
-	corner.Parent = bar
-	local barStroke = Instance.new("UIStroke")
-	barStroke.Thickness = 2.5
-	barStroke.Color = Color3.fromRGB(24, 18, 28)
-	barStroke.Parent = bar
-	local fill = Instance.new("Frame")
-	fill.Name = "Fill"
-	fill.Size = UDim2.fromScale(1, 1)
-	fill.BackgroundColor3 = Color3.fromRGB(90, 220, 90)
-	fill.BorderSizePixel = 0
-	fill.Parent = bar
-	local fillCorner = Instance.new("UICorner")
-	fillCorner.CornerRadius = UDim.new(1, 0)
-	fillCorner.Parent = fill
-	local shine = Instance.new("UIGradient")
-	shine.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(190, 190, 190))
-	shine.Rotation = 90
-	shine.Parent = fill
-	record.healthBar = bar
-	record.healthFill = fill
+ record.model:SetAttribute("HealthRevealUntil",0)
 end
-
 local function showHealth(record)
-	local bar, fill = record.healthBar, record.healthFill
-	if not bar then
-		return
-	end
-	local fraction = math.clamp(record.health / record.maxHealth, 0, 1)
-	fill.Size = UDim2.fromScale(fraction, 1)
-	fill.BackgroundColor3 = Color3.fromRGB(230, 70, 60):Lerp(Color3.fromRGB(90, 220, 90), fraction)
-	bar.Visible = true
-	record.barToken = (record.barToken or 0) + 1
-	local token = record.barToken
-	task.delay(4, function()
-		if record.barToken == token and bar.Parent then
-			bar.Visible = false
-		end
-	end)
+ record.model:SetAttribute("HealthRevealUntil",workspace:GetServerTimeNow()+5)
 end
 
 ---------------------------------------------------------------- building a model
@@ -338,7 +258,11 @@ function AnimalManager.BuildModel(species, weight, mutation)
 	if not model.PrimaryPart then
 		model.PrimaryPart = model:FindFirstChild("Body", true) or model:FindFirstChildWhichIsA("BasePart", true)
 	end
+	local _,_,baseBounds=AnimalManager.RootOffsets(model)
+	local baseFactor=(HuntingRules.BaseSize[species] or 3)/math.max(baseBounds.X,baseBounds.Y,baseBounds.Z)
 	local size = AnimalData.WeightTraits(species, weight)
+	model:ScaleTo(model:GetScale()*baseFactor)
+	model:SetAttribute("SpeciesBaseSize",HuntingRules.BaseSize[species] or 3)
 	if size.scale ~= 1 then
 		-- relative to the template's own scale (imported meshes are stored at e.g. 0.017, not 1)
 		model:ScaleTo(model:GetScale() * size.scale)
@@ -389,9 +313,9 @@ function AnimalManager.RootOffsets(model)
 end
 
 ---------------------------------------------------------------- spawning
-local function spawnOne(zone)
+local function spawnOne(zone, nonCommon)
 	local worldId = zone:GetAttribute("World") or 1
-	local species = rollSpecies(worldId)
+	local species = rollSpecies(worldId, nonCommon)
 	if not species then
 		return nil
 	end
@@ -427,6 +351,7 @@ local function spawnOne(zone)
 	local value = math.floor(cfg.value * size.value * (MUTATIONS[mutation] and MUTATIONS[mutation].value or 1) + 0.5)
 	model:SetAttribute("AnimalId", nextId)
 	model:SetAttribute("Species", species)
+	model:SetAttribute("VisualHeight",boxSize.Y)
 	model:SetAttribute("Rarity", cfg.rarity)
 	model:SetAttribute("World", worldId)
 	model:SetAttribute("WeightKg", size.weight)
@@ -499,19 +424,24 @@ local function wave()
 	end
 	for _, zone in ipairs(zonesFolder:GetChildren()) do
 		if zone:IsA("BasePart") then
-			local alive = AnimalCarry.CountForZone(zone) -- stunned ones will wake up again
-			for _, record in pairs(records) do
-				if record.zone == zone then
-					alive += 1
-				end
-			end
-			-- this wave's random size for this world (2..5 by default), never above the max
-			local max = zone:GetAttribute("Population") or DEFAULT_POPULATION
-			local min = math.min(zone:GetAttribute("MinPopulation") or DEFAULT_MIN_POPULATION, max)
-			local target = rng:NextInteger(min, max)
+			local stunned = AnimalCarry.CountForZone(zone) -- never erase a pet somebody is collecting
+			local target = SpawnPolicy.Count(zone,rng)
+			zone:SetAttribute("WaveRolledTarget",target)
+			target=math.max(target,stunned)
+			local live={}
+			for _,record in pairs(records) do if record.zone==zone then table.insert(live,record) end end
+			table.sort(live,function(a,b) return a.wave==b.wave and a.model:GetAttribute("AnimalId")<b.model:GetAttribute("AnimalId") or a.wave<b.wave end)
+			while #live+stunned>target do removeRecord(table.remove(live,1),"Despawn") end
+			local alive=#live+stunned
 			zone:SetAttribute("WaveTarget", target)
-			for _ = alive + 1, target do
-				spawnOne(zone)
+			local attempts=0
+			while alive<target and attempts<(target-alive+1)*10 do
+				attempts+=1
+				local commonsOnly=true
+				for _,r in pairs(records) do
+					if r.zone==zone and r.cfg.rarity~="Common" then commonsOnly=false;break end
+				end
+				if spawnOne(zone,commonsOnly and alive>=target-1) then alive+=1 end
 			end
 		end
 	end
@@ -592,7 +522,8 @@ end
 ---------------------------------------------------------------- aggressive animals (Yeti): chase + punch
 -- who it goes after: whoever shot it (if still in its zone and not too far), otherwise the nearest player in its zone
 local function pickTarget(record)
-	local range = record.cfg.aggroRange or 50
+	local behavior=HuntingRules.Behavior(record.species,record.worldId)
+	local range = behavior.alert
 	local best, bestScore = nil, math.huge
 	for _, player in ipairs(Players:GetPlayers()) do
 		local character = player.Character
@@ -601,7 +532,7 @@ local function pickTarget(record)
 		if humanoid and humanoid.Health > 0 and root and insideZone(record.zone, root.Position) then
 			local d = Vector3.new(root.Position.X - record.pos.X, 0, root.Position.Z - record.pos.Z).Magnitude
 			local shooter = player == record.aggroPlayer
-			if d < (shooter and range * 1.6 or range) then
+			if d < (shooter and math.max(160,range * 1.6) or range) then
 				local score = shooter and d - 25 or d
 				if score < bestScore then
 					best, bestScore = player, score
@@ -644,7 +575,7 @@ local function chaseStep(record, dt)
 	local moving = false
 	if dist > reach + 0.5 then -- (the margin: it walks up to `reach`, so it must count as "in reach" once there)
 		local nextPos = record.pos + delta.Unit * math.min((cfg.chaseSpeed or 12) * dt, dist - reach)
-		if insideZone(record.zone, nextPos) then
+		if insideZone(record.zone, nextPos) and pathClear(record.pos,nextPos,math.clamp(record.width*.15,.35,1.4)) then
 			local y = groundAt(nextPos.X, nextPos.Z, nextPos.Y + 8)
 			record.pos = Vector3.new(nextPos.X, y or record.pos.Y, nextPos.Z)
 			moving = true
@@ -680,6 +611,9 @@ local function chaseStep(record, dt)
 end
 
 local function step(record, dt)
+	Awareness.Update(record,dt)
+	local fleeing=Awareness.FlightStep(record,dt)
+	if fleeing then return fleeing end
 	local cfg = record.cfg
 	if cfg.aggressive then
 		local cf = chaseStep(record, dt)
@@ -739,19 +673,47 @@ local function step(record, dt)
 		record.model:SetAttribute("AnimStartedAt", workspace:GetServerTimeNow() - record.stateT)
 		record.model:SetAttribute("AnimDuration", hopTime)
 	end
+	if cfg.hoverHeight then yOff+=cfg.hoverHeight*scale+.07*scale*math.sin(record.clock*4) end
 	return CFrame.new(record.pos + Vector3.new(0, yOff, 0)) * CFrame.Angles(0, record.yaw, 0) * CFrame.Angles(pitch, 0, 0)
 end
 
+-- Animals far from every player step (and replicate) at FAR_RATE instead of every frame: nobody can see the
+-- difference that far away, and it saves most of the movement traffic every client receives.
+local FAR_DISTANCE = 220 -- studs from the nearest player
+local FAR_RATE = 1 / 8 -- seconds between updates when that far
 local allParts, allCFrames = {}, {}
+local playerSpots = {}
+local function nearestPlayer(position)
+	local best = math.huge
+	for _, spot in ipairs(playerSpots) do
+		local d = (spot - position).Magnitude
+		if d < best then
+			best = d
+		end
+	end
+	return best
+end
 local function onHeartbeat(dt)
 	table.clear(allParts)
 	table.clear(allCFrames)
+	table.clear(playerSpots)
+	for _, player in ipairs(Players:GetPlayers()) do
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if root then
+			table.insert(playerSpots, root.Position)
+		end
+	end
 	for _, record in pairs(records) do
 		if record.model.Parent then
-			local root = step(record, dt)
-			local i = record.rootIndex
-			table.insert(allParts, record.model.PrimaryPart)
-			table.insert(allCFrames, root * record.offsets[i])
+			record.pendingDt = (record.pendingDt or 0) + dt
+			local far = nearestPlayer(record.pos) > FAR_DISTANCE
+			if not far or record.pendingDt >= FAR_RATE then
+				local root = step(record, math.min(record.pendingDt, 0.25))
+				record.pendingDt = 0
+				local i = record.rootIndex
+				table.insert(allParts, record.model.PrimaryPart)
+				table.insert(allCFrames, root * record.offsets[i])
+			end
 		end
 	end
 	if #allParts > 0 then
@@ -789,6 +751,7 @@ function AnimalManager.Damage(record, amount, player, hitPos)
 	if record.dead then
 		return "none"
 	end
+	Awareness.Hit(record,player,hitPos)
 	record.health = math.max(0, record.health - amount)
 	record.model:SetAttribute("Health", record.health)
 	animalEvent:FireAllClients("Hit", { model = record.model, position = hitPos, scale = record.size.scale })
@@ -829,9 +792,7 @@ function AnimalManager.Damage(record, amount, player, hitPos)
 		record.nextTargetCheck = 0
 		return "hit"
 	end
-	local character = player.Character
-	local from = character and character:FindFirstChild("HumanoidRootPart")
-	startWander(record, from and from.Position or hitPos)
+	-- Awareness runs an uninterrupted escape for seven seconds rather than one short wander.
 	return "hit"
 end
 

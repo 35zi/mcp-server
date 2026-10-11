@@ -125,4 +125,7 @@ bit taller than the big animals.
   from part corners (`AnimalManager.RootOffsets`); do the same in tools.
 - `require` from MCP `execute_luau` gets a fresh module copy (no shared state with game scripts).
 - Mouse and Duckling templates exist but are in no world.
+- Performance (2026-10-11): in templates only the body (PrimaryPart) casts a shadow; turn `CastShadow` off on
+  every other part of a new animal (tagged `ShadowOffForPerf`). AnimalManager steps animals more than 220 studs
+  from every player at 8 Hz, and AnimalAnimationClient already animates far animals less often.
 - Back up before big changes into `ServerStorage.<Name>Backup_<date>` (the project's habit).

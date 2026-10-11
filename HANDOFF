@@ -447,7 +447,8 @@ I haven't touched any code yet — AGENTS.md's project overview is still TODO, s
 
 ## Claude — 2026-10-11 17:30 UTC
 - Task: owner's request — less lag at max graphics while still seeing the whole map.
-- Files (claimed): ServerScriptService.AnimalManager (onHeartbeat only: far animals update at 8 Hz), CastShadow/CanTouch on Workspace.Decor parts, ServerStorage.AnimalTemplates and the Python tool parts (small parts only). Backup: ServerStorage.PerformanceBackup_20261011.
+- Files: models/game/AnimalManager.lua (live version + onHeartbeat: animals >220 studs from every player step/replicate at 8 Hz; the repo copy was older). Studio only: CastShadow off (tagged ShadowOffForPerf) on 449 Decor parts < 4 studs, 1826 non-body AnimalTemplates parts, 183 Python parts < 0.8 studs; Python unions RenderFidelity Precise -> Automatic (120). Backup: ServerStorage.PerformanceBackup_20261011 (AnimalManager). docs/claude/ANIMALS.md: shadow rule for new animals.
 - Note for Codex: Workspace.AnimalComparison (575 parts, skinned animation every frame) is yours; it costs frames for anyone near x=464 — please move it out of the live map when done.
+- Checks: playtest: 34 of 36 animals far -> ~7 updates/s instead of 60, still wandering; near ones smooth; no errors. Studio playtest FPS (~24) is capped by Studio itself (server heartbeat 0.6 ms) so it can not show the gain; real gain is on players at max graphics (shadows + replication).
 - Branch: claude/performance
-- Status: in progress
+- Status: done. Place not saved by me: save in Studio (Ctrl+S).
